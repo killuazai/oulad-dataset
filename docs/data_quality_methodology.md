@@ -2,7 +2,7 @@
 
 ## Quality hierarchy
 
-Every pipeline run appends one row per check to `oulad_dq.dq_check_results`. The dashboard then aggregates checks in this order:
+Every pipeline run appends one row per check to `ftw-week-07.05-data-quality.dq_check_results`. The dashboard then aggregates checks in this order:
 
 ```text
 check result -> dataset score -> quality dimension score -> overall run score

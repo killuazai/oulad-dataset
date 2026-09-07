@@ -1,6 +1,6 @@
 # Validation
 
-Every validation file both appends check results to `oulad_dq.dq_check_results` and applies a pipeline gate.
+Every validation file both appends check results to `ftw-week-07.05-data-quality.dq_check_results` and applies a pipeline gate.
 
 | Step | File | Main coverage |
 | --- | --- | --- |

@@ -3,7 +3,7 @@
 -- Purpose: Load the seven OULAD CSV files into typed, source-aligned Delta tables.
 -- Grain: The original grain of each source file.
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_bronze.courses')
+CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.courses')
 USING DELTA
 AS
 SELECT
@@ -22,7 +22,7 @@ FROM READ_FILES(
   schema => 'code_module STRING, code_presentation STRING, module_presentation_length INT'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_bronze.assessments')
+CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.assessments')
 USING DELTA
 AS
 SELECT
@@ -44,7 +44,7 @@ FROM READ_FILES(
   schema => 'id_assessment BIGINT, code_module STRING, code_presentation STRING, assessment_type STRING, date INT, weight DECIMAL(7, 3)'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_bronze.vle')
+CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.vle')
 USING DELTA
 AS
 SELECT
@@ -66,7 +66,7 @@ FROM READ_FILES(
   schema => 'id_site BIGINT, code_module STRING, code_presentation STRING, activity_type STRING, week_from INT, week_to INT'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_bronze.student_info')
+CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.student_info')
 USING DELTA
 AS
 SELECT
@@ -94,7 +94,7 @@ FROM READ_FILES(
   schema => 'code_module STRING, code_presentation STRING, id_student BIGINT, gender STRING, region STRING, highest_education STRING, imd_band STRING, age_band STRING, num_of_prev_attempts INT, studied_credits INT, disability STRING, final_result STRING'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_bronze.student_registration')
+CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.student_registration')
 USING DELTA
 AS
 SELECT
@@ -115,7 +115,7 @@ FROM READ_FILES(
   schema => 'code_module STRING, code_presentation STRING, id_student BIGINT, date_registration INT, date_unregistration INT'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_bronze.student_assessment')
+CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.student_assessment')
 USING DELTA
 AS
 SELECT
@@ -136,7 +136,7 @@ FROM READ_FILES(
   schema => 'id_assessment BIGINT, id_student BIGINT, date_submitted INT, is_banked INT, score DECIMAL(7, 3)'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_bronze.student_vle')
+CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.student_vle')
 USING DELTA
 AS
 SELECT

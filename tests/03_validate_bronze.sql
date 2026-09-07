@@ -3,7 +3,7 @@
 -- Purpose: Persist source-level DQ results and stop on critical ingestion failures.
 -- Grain: One row per data quality check and pipeline run.
 
-INSERT INTO IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results')
+INSERT INTO IDENTIFIER(oulad_dq_namespace || '.dq_check_results')
 WITH checks AS (
   SELECT
     'courses' AS dataset_name,
@@ -18,7 +18,7 @@ WITH checks AS (
     COUNT(*) AS total_count,
     COUNT_IF(code_module IS NULL OR code_presentation IS NULL)
       + COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation)) AS failed_count
-  FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.courses')
+  FROM IDENTIFIER(oulad_raw_namespace || '.courses')
 
   UNION ALL
 
@@ -32,7 +32,7 @@ WITH checks AS (
       OR weight NOT BETWEEN 0 AND 100
       OR (assessment_type <> 'Exam' AND assessment_date IS NULL)
     ) + COUNT(*) - COUNT(DISTINCT id_assessment)
-  FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.assessments')
+  FROM IDENTIFIER(oulad_raw_namespace || '.assessments')
 
   UNION ALL
 
@@ -45,7 +45,7 @@ WITH checks AS (
       OR activity_type IS NULL OR TRIM(activity_type) = ''
       OR (week_from IS NOT NULL AND week_to IS NOT NULL AND week_from > week_to)
     ) + COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation, id_site))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.vle')
+  FROM IDENTIFIER(oulad_raw_namespace || '.vle')
 
   UNION ALL
 
@@ -59,7 +59,7 @@ WITH checks AS (
       OR final_result NOT IN ('Withdrawn', 'Fail', 'Pass', 'Distinction')
       OR num_of_prev_attempts < 0 OR studied_credits <= 0
     ) + COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation, id_student))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_info')
+  FROM IDENTIFIER(oulad_raw_namespace || '.student_info')
 
   UNION ALL
 
@@ -72,7 +72,7 @@ WITH checks AS (
       OR (date_registration IS NOT NULL AND date_unregistration IS NOT NULL
         AND date_unregistration < date_registration)
     ) + COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation, id_student))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_registration')
+  FROM IDENTIFIER(oulad_raw_namespace || '.student_registration')
 
   UNION ALL
 
@@ -84,7 +84,7 @@ WITH checks AS (
       id_assessment IS NULL OR id_student IS NULL OR date_submitted IS NULL
       OR is_banked NOT IN (0, 1) OR score < 0 OR score > 100
     ) + COUNT(*) - COUNT(DISTINCT STRUCT(id_assessment, id_student))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_assessment')
+  FROM IDENTIFIER(oulad_raw_namespace || '.student_assessment')
 
   UNION ALL
 
@@ -97,7 +97,7 @@ WITH checks AS (
       id_student IS NULL OR id_site IS NULL OR code_module IS NULL OR code_presentation IS NULL
       OR activity_date IS NULL OR sum_click IS NULL OR sum_click <= 0
     )
-  FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_vle')
+  FROM IDENTIFIER(oulad_raw_namespace || '.student_vle')
 
   UNION ALL
 
@@ -107,19 +107,19 @@ WITH checks AS (
     0, 'CRITICAL', 'data_engineering', SUM(table_count), SUM(rescued_count)
   FROM (
     SELECT COUNT(*) AS table_count, COUNT_IF(_rescued_data IS NOT NULL) AS rescued_count
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.courses')
+    FROM IDENTIFIER(oulad_raw_namespace || '.courses')
     UNION ALL SELECT COUNT(*), COUNT_IF(_rescued_data IS NOT NULL)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.assessments')
+    FROM IDENTIFIER(oulad_raw_namespace || '.assessments')
     UNION ALL SELECT COUNT(*), COUNT_IF(_rescued_data IS NOT NULL)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.vle')
+    FROM IDENTIFIER(oulad_raw_namespace || '.vle')
     UNION ALL SELECT COUNT(*), COUNT_IF(_rescued_data IS NOT NULL)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_info')
+    FROM IDENTIFIER(oulad_raw_namespace || '.student_info')
     UNION ALL SELECT COUNT(*), COUNT_IF(_rescued_data IS NOT NULL)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_registration')
+    FROM IDENTIFIER(oulad_raw_namespace || '.student_registration')
     UNION ALL SELECT COUNT(*), COUNT_IF(_rescued_data IS NOT NULL)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_assessment')
+    FROM IDENTIFIER(oulad_raw_namespace || '.student_assessment')
     UNION ALL SELECT COUNT(*), COUNT_IF(_rescued_data IS NOT NULL)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_vle')
+    FROM IDENTIFIER(oulad_raw_namespace || '.student_vle')
   ) AS rescued
 
   UNION ALL
@@ -138,19 +138,19 @@ WITH checks AS (
     ABS(observed.observed_count - expected.expected_count)
   FROM (
     SELECT 'courses' AS dataset_name, COUNT(*) AS observed_count
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.courses')
+    FROM IDENTIFIER(oulad_raw_namespace || '.courses')
     UNION ALL SELECT 'assessments', COUNT(*)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.assessments')
+    FROM IDENTIFIER(oulad_raw_namespace || '.assessments')
     UNION ALL SELECT 'vle', COUNT(*)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.vle')
+    FROM IDENTIFIER(oulad_raw_namespace || '.vle')
     UNION ALL SELECT 'student_info', COUNT(*)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_info')
+    FROM IDENTIFIER(oulad_raw_namespace || '.student_info')
     UNION ALL SELECT 'student_registration', COUNT(*)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_registration')
+    FROM IDENTIFIER(oulad_raw_namespace || '.student_registration')
     UNION ALL SELECT 'student_assessment', COUNT(*)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_assessment')
+    FROM IDENTIFIER(oulad_raw_namespace || '.student_assessment')
     UNION ALL SELECT 'student_vle', COUNT(*)
-    FROM IDENTIFIER(oulad_catalog || '.oulad_bronze.student_vle')
+    FROM IDENTIFIER(oulad_raw_namespace || '.student_vle')
   ) AS observed
   INNER JOIN (
     SELECT * FROM VALUES
@@ -210,8 +210,8 @@ SELECT
   failed_count,
   ASSERT_TRUE(
     COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') OVER () = 0,
-    'critical Bronze data quality check failed; inspect oulad_dq.dq_check_results'
+    'critical Bronze data quality check failed; inspect 05-data-quality.dq_check_results'
   ) AS bronze_quality_gate
-FROM IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results')
+FROM IDENTIFIER(oulad_dq_namespace || '.dq_check_results')
 WHERE run_id = dq_run_id AND layer = 'BRONZE'
 ORDER BY dataset_name, check_name;

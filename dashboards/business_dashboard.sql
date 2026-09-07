@@ -6,7 +6,7 @@ SELECT
   AVG(active_days) AS average_active_days,
   AVG(total_clicks) AS average_total_clicks,
   PERCENTILE_APPROX(total_clicks, 0.5) AS median_total_clicks
-FROM workspace.oulad_analytics.student_engagement
+FROM `ftw-week-07`.`04-analytics`.student_engagement
 GROUP BY final_result
 ORDER BY average_total_clicks DESC;
 
@@ -19,7 +19,7 @@ SELECT
   enrolled_students,
   withdrawn_students,
   withdrawal_rate
-FROM workspace.oulad_analytics.learner_outcomes
+FROM `ftw-week-07`.`04-analytics`.learner_outcomes
 ORDER BY withdrawal_rate DESC;
 
 -- COMMAND ----------
@@ -31,10 +31,10 @@ SELECT
   module.code_presentation,
   SUM(interaction.sum_click) AS total_clicks,
   COUNT(DISTINCT interaction.student_key) AS active_students
-FROM workspace.oulad_gold.fact_vle_interaction AS interaction
-INNER JOIN workspace.oulad_gold.dim_relative_date AS activity_date
+FROM `ftw-week-07`.`03-mart`.fact_vle_interaction AS interaction
+INNER JOIN `ftw-week-07`.`03-mart`.dim_relative_date AS activity_date
   ON interaction.activity_date_key = activity_date.relative_date_key
-INNER JOIN workspace.oulad_gold.dim_module_presentation AS module
+INNER JOIN `ftw-week-07`.`03-mart`.dim_module_presentation AS module
   ON interaction.module_presentation_key = module.module_presentation_key
 GROUP BY
   activity_date.relative_week,
@@ -56,8 +56,8 @@ SELECT
   COUNT(*) AS enrolled_students,
   AVG(enrollment.withdrawn_count) AS withdrawal_rate,
   AVG(enrollment.passed_count + enrollment.distinction_count) AS successful_outcome_rate
-FROM workspace.oulad_gold.fact_student_enrollment AS enrollment
-INNER JOIN workspace.oulad_gold.dim_demographics AS demographics
+FROM `ftw-week-07`.`03-mart`.fact_student_enrollment AS enrollment
+INNER JOIN `ftw-week-07`.`03-mart`.dim_demographics AS demographics
   ON enrollment.demographics_key = demographics.demographics_key
 GROUP BY
   demographics.gender,
@@ -75,10 +75,10 @@ SELECT
   AVG(submission.score) AS average_score,
   AVG(CASE WHEN submission.passed_assessment IS NULL THEN NULL
     WHEN submission.passed_assessment THEN 1.0 ELSE 0.0 END) AS assessment_pass_rate
-FROM workspace.oulad_gold.fact_assessment_submission AS submission
-INNER JOIN workspace.oulad_gold.dim_module_presentation AS module
+FROM `ftw-week-07`.`03-mart`.fact_assessment_submission AS submission
+INNER JOIN `ftw-week-07`.`03-mart`.dim_module_presentation AS module
   ON submission.module_presentation_key = module.module_presentation_key
-INNER JOIN workspace.oulad_gold.dim_assessment AS assessment
+INNER JOIN `ftw-week-07`.`03-mart`.dim_assessment AS assessment
   ON submission.assessment_key = assessment.assessment_key
 GROUP BY
   module.code_module,

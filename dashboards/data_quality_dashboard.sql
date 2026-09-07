@@ -10,7 +10,7 @@ SELECT
   critical_failures,
   affected_datasets,
   affected_values
-FROM workspace.oulad_dq.dq_dashboard_overview;
+FROM `ftw-week-07`.`05-data-quality`.dq_dashboard_overview;
 
 -- COMMAND ----------
 
@@ -22,7 +22,7 @@ SELECT
   warning_checks,
   failed_checks,
   affected_values
-FROM workspace.oulad_dq.dq_dashboard_dimension_scores
+FROM `ftw-week-07`.`05-data-quality`.dq_dashboard_dimension_scores
 ORDER BY dimension_score_pct;
 
 -- COMMAND ----------
@@ -36,7 +36,7 @@ SELECT
   warning_checks,
   failed_checks,
   affected_values
-FROM workspace.oulad_dq.dq_dashboard_dataset_scores
+FROM `ftw-week-07`.`05-data-quality`.dq_dashboard_dataset_scores
 ORDER BY layer, dataset_score_pct;
 
 -- COMMAND ----------
@@ -54,7 +54,7 @@ SELECT
   failure_pct,
   status,
   executed_at
-FROM workspace.oulad_dq.dq_dashboard_problem_areas;
+FROM `ftw-week-07`.`05-data-quality`.dq_dashboard_problem_areas;
 
 -- COMMAND ----------
 
@@ -67,7 +67,7 @@ SELECT
   failed_checks,
   critical_failures,
   affected_values
-FROM workspace.oulad_dq.dq_dashboard_history
+FROM `ftw-week-07`.`05-data-quality`.dq_dashboard_history
 ORDER BY executed_at;
 
 -- COMMAND ----------
@@ -79,5 +79,5 @@ SELECT
   observed_row_count,
   volume_difference_pct,
   status
-FROM workspace.oulad_dq.dq_dashboard_volume_history
+FROM `ftw-week-07`.`05-data-quality`.dq_dashboard_volume_history
 ORDER BY executed_at, dataset_name;

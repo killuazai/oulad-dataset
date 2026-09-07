@@ -3,7 +3,7 @@
 -- Purpose: Provide reusable VLE engagement measures for every student-course enrollment.
 -- Grain: One row per student and course presentation.
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_analytics.student_engagement')
+CREATE OR REPLACE TABLE IDENTIFIER(oulad_analytics_namespace || '.student_engagement')
 USING DELTA
 AS
 WITH engagement AS (
@@ -15,7 +15,7 @@ WITH engagement AS (
     SUM(sum_click) AS total_clicks,
     MIN(activity_date) AS first_activity_day,
     MAX(activity_date) AS last_activity_day
-  FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_vle_interaction')
+  FROM IDENTIFIER(oulad_mart_namespace || '.fact_vle_interaction')
   GROUP BY
     module_presentation_key,
     student_key
@@ -37,7 +37,7 @@ SELECT
     ELSE engagement.total_clicks * 1.0 / engagement.active_days
   END AS average_clicks_per_active_day,
   enrollment.final_result
-FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_enrollment') AS enrollment
+FROM IDENTIFIER(oulad_mart_namespace || '.fact_student_enrollment') AS enrollment
 LEFT JOIN engagement
   ON enrollment.module_presentation_key = engagement.module_presentation_key
   AND enrollment.student_key = engagement.student_key;

@@ -3,18 +3,23 @@
 -- Purpose: Configure the run, create layer schemas, and verify the seven required OULAD files.
 -- Grain: One validation row for the configured source directory.
 
-DECLARE OR REPLACE VARIABLE oulad_catalog STRING DEFAULT 'workspace';
-DECLARE OR REPLACE VARIABLE oulad_source_path STRING DEFAULT '/Volumes/workspace/default/oulad';
+DECLARE OR REPLACE VARIABLE oulad_source_path STRING
+  DEFAULT '/Volumes/ftw-week-07/00-source/cloudfare-r2';
+DECLARE OR REPLACE VARIABLE oulad_raw_namespace STRING DEFAULT '`ftw-week-07`.`01-raw`';
+DECLARE OR REPLACE VARIABLE oulad_clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
+DECLARE OR REPLACE VARIABLE oulad_mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
+DECLARE OR REPLACE VARIABLE oulad_analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
+DECLARE OR REPLACE VARIABLE oulad_dq_namespace STRING DEFAULT '`ftw-week-07`.`05-data-quality`';
 DECLARE OR REPLACE VARIABLE dq_run_id STRING DEFAULT UUID();
 DECLARE OR REPLACE VARIABLE dq_executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP();
 
-CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_bronze');
-CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_silver');
-CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_gold');
-CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_analytics');
-CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_dq');
+CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_raw_namespace);
+CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_clean_namespace);
+CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_mart_namespace);
+CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_analytics_namespace);
+CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_dq_namespace);
 
-CREATE TABLE IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results') (
+CREATE TABLE IF NOT EXISTS IDENTIFIER(oulad_dq_namespace || '.dq_check_results') (
   run_id STRING NOT NULL,
   executed_at TIMESTAMP NOT NULL,
   layer STRING NOT NULL,

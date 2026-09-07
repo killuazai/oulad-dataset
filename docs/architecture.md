@@ -22,11 +22,11 @@ Each layer uses a deterministic full refresh because OULAD is a fixed research s
 
 | Layer | Default schema | Responsibility |
 | --- | --- | --- |
-| Bronze or Raw | `workspace.oulad_bronze` | Explicit source schemas, original grain, ingestion metadata, rescued fields |
-| Silver or Clean | `workspace.oulad_silver` | Standardized values, valid types, parent relationships, deliberate VLE aggregation |
-| Gold or Mart | `workspace.oulad_gold` | Conformed dimensions and direct-key facts for BI |
-| Analytics | `workspace.oulad_analytics` | Reusable outcomes, engagement, performance, and risk datasets |
-| Data quality | `workspace.oulad_dq` | Persistent check history and dashboard-ready views |
+| Bronze or Raw | `ftw-week-07.01-raw` | Explicit source schemas, original grain, ingestion metadata, rescued fields |
+| Silver or Clean | `ftw-week-07.02-clean` | Standardized values, valid types, parent relationships, deliberate VLE aggregation |
+| Gold or Mart | `ftw-week-07.03-mart` | Conformed dimensions and direct-key facts for BI |
+| Analytics | `ftw-week-07.04-analytics` | Reusable outcomes, engagement, performance, and risk datasets |
+| Data quality | `ftw-week-07.05-data-quality` | Persistent check history and dashboard-ready views |
 
 ## Failure boundaries
 

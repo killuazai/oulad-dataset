@@ -3,7 +3,7 @@
 -- Purpose: Persist clean-layer DQ results and stop on broken keys or relationships.
 -- Grain: One row per data quality check and pipeline run.
 
-INSERT INTO IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results')
+INSERT INTO IDENTIFIER(oulad_dq_namespace || '.dq_check_results')
 WITH checks AS (
   SELECT
     'courses_clean' AS dataset_name, 'code_module, code_presentation' AS column_name,
@@ -12,7 +12,7 @@ WITH checks AS (
     CAST(0 AS DECIMAL(7, 3)) AS threshold_pct, 'CRITICAL' AS severity,
     'data_engineering' AS check_owner, COUNT(*) AS total_count,
     COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation)) AS failed_count
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.courses_clean')
+  FROM IDENTIFIER(oulad_clean_namespace || '.courses_clean')
 
   UNION ALL
 
@@ -20,8 +20,8 @@ WITH checks AS (
     'assessments_clean', 'code_module, code_presentation', 'all assessments match a course presentation',
     'REFERENTIAL_INTEGRITY', 'FOREIGN_KEY', 'Every assessment has a matching clean course presentation',
     0, 'CRITICAL', 'data_engineering', COUNT(*), COUNT_IF(course.code_module IS NULL)
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.assessments_clean') AS assessment
-  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.courses_clean') AS course
+  FROM IDENTIFIER(oulad_clean_namespace || '.assessments_clean') AS assessment
+  LEFT JOIN IDENTIFIER(oulad_clean_namespace || '.courses_clean') AS course
     ON assessment.code_module = course.code_module
     AND assessment.code_presentation = course.code_presentation
 
@@ -32,7 +32,7 @@ WITH checks AS (
     'UNIQUENESS', 'UNIQUE', 'One row per student and module presentation',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation, id_student))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean')
+  FROM IDENTIFIER(oulad_clean_namespace || '.student_info_clean')
 
   UNION ALL
 
@@ -41,8 +41,8 @@ WITH checks AS (
     'all registration rows match a student enrollment', 'REFERENTIAL_INTEGRITY', 'FOREIGN_KEY',
     'Every registration has a matching clean student enrollment',
     0, 'CRITICAL', 'data_engineering', COUNT(*), COUNT_IF(student.id_student IS NULL)
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_registration_clean') AS registration
-  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean') AS student
+  FROM IDENTIFIER(oulad_clean_namespace || '.student_registration_clean') AS registration
+  LEFT JOIN IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
     ON registration.code_module = student.code_module
     AND registration.code_presentation = student.code_presentation
     AND registration.id_student = student.id_student
@@ -56,10 +56,10 @@ WITH checks AS (
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(assessment.id_assessment IS NULL OR student.id_student IS NULL)
       + COUNT(*) - COUNT(DISTINCT STRUCT(submission.id_assessment, submission.id_student))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_assessment_clean') AS submission
-  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.assessments_clean') AS assessment
+  FROM IDENTIFIER(oulad_clean_namespace || '.student_assessment_clean') AS submission
+  LEFT JOIN IDENTIFIER(oulad_clean_namespace || '.assessments_clean') AS assessment
     ON submission.id_assessment = assessment.id_assessment
-  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean') AS student
+  LEFT JOIN IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
     ON assessment.code_module = student.code_module
     AND assessment.code_presentation = student.code_presentation
     AND submission.id_student = student.id_student
@@ -76,12 +76,12 @@ WITH checks AS (
         interaction.code_module, interaction.code_presentation, interaction.id_student,
         interaction.id_site, interaction.activity_date
       ))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_vle_clean') AS interaction
-  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.vle_clean') AS activity
+  FROM IDENTIFIER(oulad_clean_namespace || '.student_vle_clean') AS interaction
+  LEFT JOIN IDENTIFIER(oulad_clean_namespace || '.vle_clean') AS activity
     ON interaction.code_module = activity.code_module
     AND interaction.code_presentation = activity.code_presentation
     AND interaction.id_site = activity.id_site
-  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean') AS student
+  LEFT JOIN IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
     ON interaction.code_module = student.code_module
     AND interaction.code_presentation = student.code_presentation
     AND interaction.id_student = student.id_student
@@ -92,7 +92,7 @@ WITH checks AS (
     'student_assessment_clean', 'score', 'score null rate is monitored',
     'COMPLETENESS', 'NULL_RATE', 'Missing scores remain at or below 1 percent',
     CAST(1.0 AS DECIMAL(7, 3)), 'MEDIUM', 'analytics', COUNT(*), COUNT_IF(score IS NULL)
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_assessment_clean')
+  FROM IDENTIFIER(oulad_clean_namespace || '.student_assessment_clean')
 ),
 scored AS (
   SELECT
@@ -123,8 +123,8 @@ SELECT
   failed_count,
   ASSERT_TRUE(
     COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') OVER () = 0,
-    'critical Silver data quality check failed; inspect oulad_dq.dq_check_results'
+    'critical Silver data quality check failed; inspect 05-data-quality.dq_check_results'
   ) AS silver_quality_gate
-FROM IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results')
+FROM IDENTIFIER(oulad_dq_namespace || '.dq_check_results')
 WHERE run_id = dq_run_id AND layer = 'SILVER'
 ORDER BY dataset_name, check_name;

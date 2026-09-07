@@ -6,16 +6,17 @@ These rules keep SQL predictable across Databricks, GitHub, and BI tools.
 
 | Object | Convention | Example |
 | --- | --- | --- |
-| Catalog | Existing workspace catalog | `workspace` |
-| Layer schema | Project plus medallion layer | `oulad_bronze`, `oulad_silver`, `oulad_gold` |
-| Quality schema | Project plus purpose | `oulad_dq` |
-| Analytics schema | Project plus purpose | `oulad_analytics` |
+| Catalog | Course-week catalog | `ftw-week-07` |
+| Source schema | Ordered layer name | `00-source` |
+| Layer schema | Ordered lecture layer | `01-raw`, `02-clean`, `03-mart` |
+| Analytics schema | Ordered serving layer | `04-analytics` |
+| Quality schema | Ordered monitoring layer | `05-data-quality` |
 | Dimension | `dim_` plus singular noun | `dim_student` |
 | Fact | `fact_` plus singular business event | `fact_vle_interaction` |
 | Dashboard view | `dq_dashboard_` plus subject | `dq_dashboard_overview` |
 | Clean table | Source entity plus `_clean` | `student_info_clean` |
 
-Bronze, Silver, and Gold correspond to the lecture terms Raw, Clean, and Mart. Use one vocabulary within a database path; do not mix names such as `raw_student_info` inside `oulad_bronze`.
+Bronze, Silver, and Gold correspond to the workspace schemas Raw, Clean, and Mart. The numeric prefixes preserve execution order in the Catalog Explorer. Hyphenated Unity Catalog names are passed through `IDENTIFIER()` or enclosed in backticks.
 
 ## Columns and keys
 

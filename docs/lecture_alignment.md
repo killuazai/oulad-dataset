@@ -11,6 +11,6 @@
 | Avoid snowball joins | Gold dimensions never depend on another dimension in the BI model |
 | Treat the pipeline as software | Git-friendly SQL files, repository checks, SQL linting, feature-branch workflow, and documented decisions |
 | Build a data quality dashboard | Weighted overall, dimension, dataset, issue, history, freshness, and volume views plus a dashboard build guide |
-| Keep static ingestion simple | Explicit CSV schemas and deterministic SQL full refresh for the fixed OULAD snapshot |
+| Keep static ingestion simple and low-cost | Explicit CSV schemas and deterministic SQL full refresh for the fixed OULAD snapshot |
 
 The repository uses Databricks SQL because the work is relational ingestion, cleaning, joins, aggregation, dimensional modeling, and dashboard serving. PySpark patterns from the course remain appropriate if future volume or transformation complexity exceeds the SQL workflow.

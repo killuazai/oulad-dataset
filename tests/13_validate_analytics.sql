@@ -3,7 +3,7 @@
 -- Purpose: Persist reporting-level DQ results and stop on broken dashboard datasets.
 -- Grain: One row per data quality check and pipeline run.
 
-INSERT INTO IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results')
+INSERT INTO IDENTIFIER(oulad_dq_namespace || '.dq_check_results')
 WITH checks AS (
   SELECT
     'learner_outcomes' AS dataset_name, 'module_presentation_key' AS column_name,
@@ -16,7 +16,7 @@ WITH checks AS (
       module_presentation_key IS NULL OR successful_outcome_rate NOT BETWEEN 0 AND 1
       OR withdrawal_rate NOT BETWEEN 0 AND 1 OR enrolled_students <= 0
     ) + COUNT(*) - COUNT(DISTINCT module_presentation_key) AS failed_count
-  FROM IDENTIFIER(oulad_catalog || '.oulad_analytics.learner_outcomes')
+  FROM IDENTIFIER(oulad_analytics_namespace || '.learner_outcomes')
 
   UNION ALL
 
@@ -28,9 +28,9 @@ WITH checks AS (
       student_enrollment_key IS NULL OR active_days < 0 OR activities_used < 0 OR total_clicks < 0
     ) + COUNT(*) - COUNT(DISTINCT student_enrollment_key)
       + ABS(COUNT(*) - (
-        SELECT COUNT(*) FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_enrollment')
+        SELECT COUNT(*) FROM IDENTIFIER(oulad_mart_namespace || '.fact_student_enrollment')
       ))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_analytics.student_engagement')
+  FROM IDENTIFIER(oulad_analytics_namespace || '.student_engagement')
 
   UNION ALL
 
@@ -44,7 +44,7 @@ WITH checks AS (
       OR pass_rate IS NULL OR pass_rate NOT BETWEEN 0 AND 1
       OR late_submission_rate NOT BETWEEN 0 AND 1
     ) + COUNT(*) - COUNT(DISTINCT STRUCT(module_presentation_key, assessment_type))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_analytics.assessment_performance')
+  FROM IDENTIFIER(oulad_analytics_namespace || '.assessment_performance')
 
   UNION ALL
 
@@ -58,9 +58,9 @@ WITH checks AS (
       OR risk_level NOT IN ('LOW', 'MEDIUM', 'HIGH')
     ) + COUNT(*) - COUNT(DISTINCT student_enrollment_key)
       + ABS(COUNT(*) - (
-        SELECT COUNT(*) FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_enrollment')
+        SELECT COUNT(*) FROM IDENTIFIER(oulad_mart_namespace || '.fact_student_enrollment')
       ))
-  FROM IDENTIFIER(oulad_catalog || '.oulad_analytics.at_risk_students')
+  FROM IDENTIFIER(oulad_analytics_namespace || '.at_risk_students')
 ),
 scored AS (
   SELECT
@@ -91,8 +91,8 @@ SELECT
   failed_count,
   ASSERT_TRUE(
     COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') OVER () = 0,
-    'critical Analytics data quality check failed; inspect oulad_dq.dq_check_results'
+    'critical Analytics data quality check failed; inspect 05-data-quality.dq_check_results'
   ) AS analytics_quality_gate
-FROM IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results')
+FROM IDENTIFIER(oulad_dq_namespace || '.dq_check_results')
 WHERE run_id = dq_run_id AND layer = 'ANALYTICS'
 ORDER BY dataset_name, check_name;
