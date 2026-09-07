@@ -7,7 +7,7 @@ CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_analytics.learner_ou
 USING DELTA
 AS
 SELECT
-  course_presentation_key,
+  module_presentation_key,
   code_module,
   code_presentation,
   COUNT(*) AS enrolled_students,
@@ -19,8 +19,8 @@ SELECT
   AVG(CASE WHEN final_result = 'Withdrawn' THEN 1.0 ELSE 0.0 END) AS withdrawal_rate,
   AVG(studied_credits) AS average_studied_credits,
   AVG(num_of_prev_attempts) AS average_previous_attempts
-FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_course')
+FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_enrollment')
 GROUP BY
-  course_presentation_key,
+  module_presentation_key,
   code_module,
   code_presentation;

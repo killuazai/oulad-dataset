@@ -11,20 +11,20 @@ USING DELTA
 AS
 WITH assessment_signals AS (
   SELECT
-    course_presentation_key,
+    module_presentation_key,
     student_key,
     COUNT(*) AS submission_count,
     AVG(score) AS average_score,
     COUNT_IF(days_from_due_date > 0) AS late_submission_count
   FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_assessment_submission')
   GROUP BY
-    course_presentation_key,
+    module_presentation_key,
     student_key
 ),
 signals AS (
   SELECT
-    enrollment.student_course_key,
-    enrollment.course_presentation_key,
+    enrollment.student_enrollment_key,
+    enrollment.module_presentation_key,
     enrollment.student_key,
     enrollment.code_module,
     enrollment.code_presentation,
@@ -48,16 +48,16 @@ signals AS (
         ELSE 0
       END
       + CASE WHEN enrollment.date_registration > 0 THEN 1 ELSE 0 END AS risk_score
-  FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_course') AS enrollment
+  FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_enrollment') AS enrollment
   INNER JOIN IDENTIFIER(oulad_catalog || '.oulad_analytics.student_engagement') AS engagement
-    ON enrollment.student_course_key = engagement.student_course_key
+    ON enrollment.student_enrollment_key = engagement.student_enrollment_key
   LEFT JOIN assessment_signals AS assessment
-    ON enrollment.course_presentation_key = assessment.course_presentation_key
+    ON enrollment.module_presentation_key = assessment.module_presentation_key
     AND enrollment.student_key = assessment.student_key
 )
 SELECT
-  student_course_key,
-  course_presentation_key,
+  student_enrollment_key,
+  module_presentation_key,
   student_key,
   code_module,
   code_presentation,

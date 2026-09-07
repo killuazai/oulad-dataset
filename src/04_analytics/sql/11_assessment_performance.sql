@@ -7,7 +7,7 @@ CREATE OR REPLACE TABLE IDENTIFIER(oulad_catalog || '.oulad_analytics.assessment
 USING DELTA
 AS
 SELECT
-  assessment.course_presentation_key,
+  submission.module_presentation_key,
   assessment.code_module,
   assessment.code_presentation,
   assessment.assessment_type,
@@ -34,7 +34,7 @@ FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_assessment_submission') AS su
 INNER JOIN IDENTIFIER(oulad_catalog || '.oulad_gold.dim_assessment') AS assessment
   ON submission.assessment_key = assessment.assessment_key
 GROUP BY
-  assessment.course_presentation_key,
+  submission.module_presentation_key,
   assessment.code_module,
   assessment.code_presentation,
   assessment.assessment_type;

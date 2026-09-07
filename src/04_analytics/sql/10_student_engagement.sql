@@ -8,7 +8,7 @@ USING DELTA
 AS
 WITH engagement AS (
   SELECT
-    course_presentation_key,
+    module_presentation_key,
     student_key,
     COUNT(DISTINCT activity_date) AS active_days,
     COUNT(DISTINCT vle_activity_key) AS activities_used,
@@ -17,12 +17,12 @@ WITH engagement AS (
     MAX(activity_date) AS last_activity_day
   FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_vle_interaction')
   GROUP BY
-    course_presentation_key,
+    module_presentation_key,
     student_key
 )
 SELECT
-  enrollment.student_course_key,
-  enrollment.course_presentation_key,
+  enrollment.student_enrollment_key,
+  enrollment.module_presentation_key,
   enrollment.student_key,
   enrollment.code_module,
   enrollment.code_presentation,
@@ -37,7 +37,7 @@ SELECT
     ELSE engagement.total_clicks * 1.0 / engagement.active_days
   END AS average_clicks_per_active_day,
   enrollment.final_result
-FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_course') AS enrollment
+FROM IDENTIFIER(oulad_catalog || '.oulad_gold.fact_student_enrollment') AS enrollment
 LEFT JOIN engagement
-  ON enrollment.course_presentation_key = engagement.course_presentation_key
+  ON enrollment.module_presentation_key = engagement.module_presentation_key
   AND enrollment.student_key = engagement.student_key;

@@ -1,37 +1,54 @@
-# OULAD Data Pipeline
+# OULAD Data Quality Pipeline
 
-An analytics-ready Databricks pipeline for the Open University Learning Analytics Dataset (OULAD). The project follows the same Medallion Architecture used in the Instacart data pipeline while adapting the model, validation rules, and example queries to education data.
+A Databricks SQL project that turns the Open University Learning Analytics Dataset into tested Bronze, Silver, and Gold data, conformed star schemas, business metrics, and a persistent data quality dashboard.
 
-## What this repository gives you
+## Project goals
 
-- One place to configure the source CSV folder.
-- Ordered Bronze, Silver, Gold, and Analytics SQL.
-- A validation gate after every layer.
-- Thin Databricks runner notebooks that keep SQL in reviewable files.
-- A `queries/` workspace for experiments that cannot affect pipeline objects.
-- Local and GitHub Actions checks for repository and SQL quality.
+- Apply the lecture workflow `SOURCE -> BRONZE/RAW -> SILVER/CLEAN -> GOLD/MART -> DASHBOARD`.
+- Model assessment performance, VLE engagement, and learner outcomes at explicit grains.
+- Conform shared dimensions and avoid dimension-to-dimension or snowball joins in BI.
+- Record data quality results over time with owners, thresholds, severity, and PASS/WARNING/FAIL status.
+- Keep exploratory queries separate from production SQL so new analysis is safe to test.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A[7 OULAD CSV files] --> B[Bronze<br/>typed source copies]
-    B --> C[Silver<br/>clean and conformed]
-    C --> D[Gold<br/>dimensions and facts]
-    D --> E[Analytics<br/>reusable learning metrics]
-    E --> F[Dashboards, notebooks, and ad-hoc queries]
+    S[Seven OULAD CSV files] --> B[Bronze or Raw]
+    B --> C[Silver or Clean]
+    C --> G[Gold or Mart stars]
+    G --> A[Analytics]
+    A --> BD[Business dashboard]
+    B --> DQ[Persistent DQ results]
+    C --> DQ
+    G --> DQ
+    A --> DQ
+    DQ --> DD[Data quality dashboard]
 ```
 
 | Layer | Default schema | Purpose |
 | --- | --- | --- |
-| Bronze | `workspace.oulad_bronze` | Typed, source-aligned tables with ingestion metadata |
-| Silver | `workspace.oulad_silver` | Clean rows, normalized text, valid domains, and conformed relationships |
-| Gold | `workspace.oulad_gold` | Course, learner, assessment, and VLE dimensions and facts |
-| Analytics | `workspace.oulad_analytics` | Small, reusable tables for outcomes, engagement, assessment performance, and risk review |
+| Bronze or Raw | `workspace.oulad_bronze` | Typed source copies, original grain, ingestion metadata |
+| Silver or Clean | `workspace.oulad_silver` | Standardized values, valid domains, conformed source relationships |
+| Gold or Mart | `workspace.oulad_gold` | BI-ready conformed dimensions and facts |
+| Analytics | `workspace.oulad_analytics` | Reusable outcome, engagement, performance, and risk datasets |
+| Data quality | `workspace.oulad_dq` | Append-only check history and dashboard views |
+
+## Gold star schema
+
+The three facts are:
+
+- `fact_student_enrollment`: one student in one module presentation.
+- `fact_assessment_submission`: one student submission for one assessment.
+- `fact_vle_interaction`: one student, VLE site, and relative course day.
+
+The conformed dimensions are `dim_student`, `dim_demographics`, `dim_module_presentation`, `dim_relative_date`, `dim_assessment`, and `dim_vle_activity`. Every relevant dimension key is stored directly on each fact. BI tools never need to join a dimension through another dimension.
+
+See [the dimensional model](docs/data_model.md) for the relationship diagram and grains.
 
 ## Source files
 
-Place the unmodified OULAD files in one Unity Catalog volume directory:
+Place these unmodified files in one Unity Catalog volume directory:
 
 ```text
 assessments.csv
@@ -43,91 +60,99 @@ studentVle.csv
 vle.csv
 ```
 
-The pipeline normalizes mixed-case source filenames and column names to `snake_case` table and column names.
+The supplied files match the published OULAD snapshot: 22 courses, 206 assessments, 6,364 VLE activities, 32,593 student information rows, 32,593 registrations, 173,912 assessment submissions, and 10,655,280 source VLE interaction rows.
 
-Download the official snapshot from [OU Analyse](https://research.stem.open.ac.uk/ouanalyse/dataset/) or its archived [Figshare record](https://figshare.com/articles/dataset/OULAD_Open_University_Learning_Analytics_Dataset/5081998). OULAD is published under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); retain the dataset authors' attribution in downstream work.
+OULAD is available from [OU Analyse](https://research.stem.open.ac.uk/ouanalyse/dataset/) and the archived [Figshare record](https://figshare.com/articles/dataset/OULAD_Open_University_Learning_Analytics_Dataset/5081998) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Quick start
 
-### Prerequisites
+### 1. Upload the source files
 
-- A Databricks workspace with Unity Catalog access.
-- Permission to create schemas under the configured catalog.
-- Databricks Runtime 14.1 or newer, or a compatible SQL warehouse, with Delta, `read_files()`, SQL variables, and `assert_true()` support.
-- The seven OULAD CSV files in a Unity Catalog volume.
+Create a Unity Catalog volume and upload all seven CSV files into one directory. The default expected path is:
 
-### Configure
+```text
+/Volumes/workspace/default/oulad
+```
 
-Open [`src/00_setup/01_setup.sql`](src/00_setup/01_setup.sql) and change only these defaults when needed:
+### 2. Configure the pipeline
+
+Edit only these defaults in `src/00_setup/01_setup.sql` when your catalog or volume differs:
 
 ```sql
 DECLARE OR REPLACE VARIABLE oulad_catalog STRING DEFAULT 'workspace';
 DECLARE OR REPLACE VARIABLE oulad_source_path STRING DEFAULT '/Volumes/workspace/default/oulad';
 ```
 
-The runner notebooks execute all files in the same session, so these variables remain available to downstream SQL.
+### 3. Run it
 
-### Run
+Import this repository as a Databricks Git folder and run:
 
-Import the repository into a Databricks Git folder. For a complete refresh, run `notebooks/00_run_full_pipeline.sql`. For layer-by-layer development, run these notebooks in order:
-
-1. `notebooks/01_bronze_oulad.sql`
-2. `notebooks/02_silver_oulad.sql`
-3. `notebooks/03_gold_oulad.sql`
-4. `notebooks/04_analytics_oulad.sql`
-
-Each runner builds one layer and immediately runs its validation gate. A failed assertion stops the run before downstream tables are refreshed.
-
-### Write a query safely
-
-Copy [`queries/00_query_template.sql`](queries/00_query_template.sql), give it a descriptive name, and query Gold or Analytics tables. Keep exploratory queries in `queries/`; production tables belong in the numbered `src/` folders and corresponding checks belong in `tests/`.
-
-### Check changes locally
-
-```bash
-python3 scripts/check_repository.py
-python3 -m pip install -r requirements-dev.txt
-sqlfluff lint src tests queries --dialect databricks
+```text
+notebooks/00_run_full_pipeline.sql
 ```
 
-The same checks run automatically for pull requests and pushes to `main`.
+The runner creates each layer, appends its quality checks, stops on a critical failure, builds analytics tables, and refreshes data quality dashboard views.
+
+For layer development, use the numbered runners in `notebooks/`. Run them in order because each assumes its upstream layer already exists.
+
+### 4. Build the dashboards
+
+Use the datasets and visual layout in `dashboards/README.md`:
+
+- `dashboards/data_quality_dashboard.sql` answers overall health, scores, failures, owners, affected datasets, history, and last checked time.
+- `dashboards/business_dashboard.sql` covers engagement versus performance, withdrawals, course-week activity, demographics, and submission behavior.
+
+If your catalog is not `workspace`, replace that prefix in the two dashboard SQL files.
+
+### 5. Add a safe query
+
+Copy `queries/00_query_template.sql`, rename it for the question, and query Gold or Analytics objects. Keep experiments in `queries/`; only reviewed reusable logic belongs in `src/`.
+
+## Data quality behavior
+
+Each validation stage appends rows to `oulad_dq.dq_check_results`. Checks record the dataset, column, quality dimension, expectation, threshold, severity, owner, evaluated values, failed values, score, and status. Scores are weighted by evaluated value counts rather than averaged equally across checks.
+
+The pipeline covers nulls, uniqueness, ranges and accepted values, referential integrity, schema rescue, volume, and output reconciliation. The official 173 null scores remain null and are monitored; repeated Bronze VLE rows are preserved and summed to the declared daily Silver grain.
+
+See [the quality methodology](docs/data_quality_methodology.md) and [validation reference](docs/validation.md).
 
 ## Repository structure
 
 ```text
 oulad-dataset/
-├── .github/workflows/quality.yml
-├── docs/
-│   ├── architecture.md
-│   ├── data_dictionary.md
-│   ├── data_model.md
-│   ├── decisions.md
-│   └── validation.md
-├── notebooks/
-│   ├── 01_bronze_oulad.sql
-│   ├── 02_silver_oulad.sql
-│   ├── 03_gold_oulad.sql
-│   └── 04_analytics_oulad.sql
-├── queries/
-│   ├── 00_query_template.sql
-│   └── examples/
-├── scripts/check_repository.py
+├── dashboards/                 # DQ and business dashboard datasets
+├── docs/                       # Architecture, model, dictionary, decisions, conventions
+├── notebooks/                  # Thin Databricks runners
+├── queries/                    # Safe ad-hoc analysis and examples
+├── scripts/                    # Dependency-free repository checks
 ├── src/
 │   ├── 00_setup/
 │   ├── 01_bronze/sql/
 │   ├── 02_silver/sql/
 │   ├── 03_gold/sql/
-│   └── 04_analytics/sql/
-└── tests/
+│   ├── 04_analytics/sql/
+│   └── 05_data_quality/sql/
+└── tests/                      # Persistent checks and pipeline gates
 ```
 
-## Design notes
+## Development checks
 
-- Builds use `CREATE OR REPLACE TABLE`, making the starter pipeline a deterministic full refresh of a fixed OULAD snapshot.
-- Source offsets such as assessment dates and registration dates remain integers because OULAD records days relative to a presentation start rather than calendar dates.
-- Repeated learner/site/day VLE rows are preserved in Bronze and summed to a stable daily grain in Silver.
-- Gold keys use deterministic SHA-256 hashes for compound business keys. The original identifiers remain available for debugging and joins.
-- The at-risk table is a transparent screening view, not a predictive model. Its thresholds are documented in the SQL and should be calibrated before operational use.
-- Dataset contents are not committed here. Follow the OULAD license and attribution requirements when acquiring and using the data.
+```bash
+python3 scripts/check_repository.py
+python3 -m pip install -r requirements-dev.txt
+sqlfluff lint src tests queries dashboards --dialect databricks
+```
 
-See [architecture](docs/architecture.md), [data model](docs/data_model.md), [data dictionary](docs/data_dictionary.md), and [validation](docs/validation.md) for implementation details.
+GitHub Actions runs the same checks on pushes and pull requests. Use a feature branch, test in Databricks, commit the finalized SQL, open a pull request, and merge only after review.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Data model](docs/data_model.md)
+- [Data dictionary](docs/data_dictionary.md)
+- [Data quality methodology](docs/data_quality_methodology.md)
+- [Naming conventions](docs/naming_conventions.md)
+- [Engineering decisions](docs/decisions.md)
+- [Validation](docs/validation.md)
+- [Lecture alignment](docs/lecture_alignment.md)
+- [Source profile](docs/source_profile.md)

@@ -22,6 +22,11 @@ REQUIRED_FILES = (
     "src/04_analytics/sql/10_student_engagement.sql",
     "src/04_analytics/sql/11_assessment_performance.sql",
     "src/04_analytics/sql/12_at_risk_students.sql",
+    "src/05_data_quality/sql/14_dq_dashboard_views.sql",
+    "dashboards/data_quality_dashboard.sql",
+    "dashboards/business_dashboard.sql",
+    "docs/naming_conventions.md",
+    "docs/data_quality_methodology.md",
     "tests/03_validate_bronze.sql",
     "tests/05_validate_silver.sql",
     "tests/08_validate_gold.sql",
@@ -42,9 +47,10 @@ FULL_RUNNER_TARGETS = (
     "src/04_analytics/sql/11_assessment_performance.sql",
     "src/04_analytics/sql/12_at_risk_students.sql",
     "tests/13_validate_analytics.sql",
+    "src/05_data_quality/sql/14_dq_dashboard_views.sql",
 )
 
-PRODUCTION_GLOBS = ("src/**/*.sql", "queries/**/*.sql")
+PRODUCTION_GLOBS = ("src/**/*.sql", "queries/**/*.sql", "dashboards/**/*.sql")
 FORBIDDEN_PATTERNS = {
     "unqualified SELECT star": re.compile(r"\bSELECT\s+\*\b", re.IGNORECASE),
     "unfinished TODO marker": re.compile(r"\bTODO\b", re.IGNORECASE),

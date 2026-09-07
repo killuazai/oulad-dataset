@@ -1,54 +1,40 @@
 # Architecture
 
-## Pipeline flow
+## End-to-end flow
 
 ```mermaid
-flowchart TD
-    S1[courses.csv] --> B[Bronze]
-    S2[assessments.csv] --> B
-    S3[vle.csv] --> B
-    S4[studentInfo.csv] --> B
-    S5[studentRegistration.csv] --> B
-    S6[studentAssessment.csv] --> B
-    S7[studentVle.csv] --> B
-    B --> V1[Bronze validation]
-    V1 --> C[Silver clean and conformed tables]
-    C --> V2[Silver validation]
-    V2 --> G[Gold dimensions and facts]
-    G --> V3[Gold validation]
-    V3 --> A[Analytics tables]
-    A --> V4[Analytics validation]
+flowchart LR
+    S[Seven OULAD CSV files] --> B[Bronze or Raw]
+    B --> QB[Persist Bronze DQ]
+    QB --> C[Silver or Clean]
+    C --> QS[Persist Silver DQ]
+    QS --> G[Gold or Mart stars]
+    G --> QG[Persist Gold DQ]
+    QG --> A[Analytics tables]
+    A --> QA[Persist Analytics DQ]
+    QA --> DQ[Data quality dashboard views]
+    A --> BD[Business dashboard]
 ```
 
-Every layer is a deterministic full refresh. A validation notebook runs directly after its layer and raises an assertion when any check fails.
+Each layer uses a deterministic full refresh because OULAD is a fixed research snapshot. Quality results are the exception: `dq_check_results` is append-only so the dashboard can show history and drift.
 
-## Dependencies
+## Layer responsibilities
 
-| Output | Direct inputs |
-| --- | --- |
-| Bronze tables | Seven source CSV files |
-| `courses_clean` | Bronze `courses` |
-| `assessments_clean`, `vle_clean` | Bronze entity plus `courses_clean` |
-| `student_info_clean` | Bronze `student_info` plus `courses_clean` |
-| `student_registration_clean` | Bronze registration plus `student_info_clean` |
-| `student_assessment_clean` | Bronze submissions plus clean assessments and students |
-| `student_vle_clean` | Bronze interactions plus clean VLE activities and students |
-| Gold dimensions | Corresponding Silver entity tables |
-| Gold facts | Silver event tables plus Gold dimensions |
-| Analytics tables | Gold facts and dimensions |
-
-## Execution model
-
-The numbered SQL files are Databricks source-format notebooks. The thin files in `notebooks/` invoke them with `%run`, preserving the configured catalog and source path in one SQL session. Use `00_run_full_pipeline.sql` for a complete refresh or the individual layer runners while developing.
+| Layer | Default schema | Responsibility |
+| --- | --- | --- |
+| Bronze or Raw | `workspace.oulad_bronze` | Explicit source schemas, original grain, ingestion metadata, rescued fields |
+| Silver or Clean | `workspace.oulad_silver` | Standardized values, valid types, parent relationships, deliberate VLE aggregation |
+| Gold or Mart | `workspace.oulad_gold` | Conformed dimensions and direct-key facts for BI |
+| Analytics | `workspace.oulad_analytics` | Reusable outcomes, engagement, performance, and risk datasets |
+| Data quality | `workspace.oulad_dq` | Persistent check history and dashboard-ready views |
 
 ## Failure boundaries
 
-- Setup fails when a required file is missing or an extra CSV is present.
-- Bronze fails on empty inputs, invalid grains, parsing rescue, or invalid source domains.
-- Silver fails on duplicates, invalid clean domains, or broken parent relationships.
-- Gold fails on duplicate deterministic keys, orphaned facts, or row reconciliation.
-- Analytics fails on duplicate grains, impossible rates, or row reconciliation.
+- Setup fails if the source folder does not contain exactly the seven expected CSV files.
+- Bronze fails on schema rescue, invalid source keys, or invalid required domains.
+- Silver fails on duplicate clean grains or broken source relationships.
+- Gold fails on duplicate dimensional keys, orphaned facts, or reconciliation differences.
+- Analytics fails on duplicate reporting grains or impossible metrics.
+- Noncritical drift remains visible as `WARNING` or `FAIL` in the dashboard without stopping the run.
 
-This boundary makes failures local: investigate the first failing layer instead of debugging downstream metrics.
-
-The official `studentVle.csv` snapshot contains repeated learner/site/day combinations. Bronze reports that repetition without failing; Silver groups those rows and sums `sum_click` to establish the documented daily interaction grain.
+Every production runner executes transformation then validation. This keeps a failed layer from refreshing downstream business outputs.

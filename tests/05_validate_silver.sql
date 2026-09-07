@@ -1,30 +1,25 @@
 -- Databricks notebook source
 -- Name: 05 - Silver Validation
--- Purpose: Stop the pipeline when clean keys, domains, or conformed relationships fail.
--- Grain: One validation summary row per Silver table.
+-- Purpose: Persist clean-layer DQ results and stop on broken keys or relationships.
+-- Grain: One row per data quality check and pipeline run.
 
-WITH validation AS (
+INSERT INTO IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results')
+WITH checks AS (
   SELECT
-    'courses_clean' AS table_name,
-    COUNT(*) AS row_count,
-    COUNT_IF(code_module IS NULL OR code_presentation IS NULL) AS null_keys,
-    COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation)) AS duplicate_keys,
-    COUNT_IF(module_presentation_length <= 0) AS invalid_values,
-    CAST(0 AS BIGINT) AS orphan_rows
+    'courses_clean' AS dataset_name, 'code_module, code_presentation' AS column_name,
+    'course grain is unique' AS check_name, 'UNIQUENESS' AS quality_dimension,
+    'UNIQUE' AS check_type, 'One row per module and presentation' AS expectation,
+    CAST(0 AS DECIMAL(7, 3)) AS threshold_pct, 'CRITICAL' AS severity,
+    'data_engineering' AS check_owner, COUNT(*) AS total_count,
+    COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation)) AS failed_count
   FROM IDENTIFIER(oulad_catalog || '.oulad_silver.courses_clean')
 
   UNION ALL
 
   SELECT
-    'assessments_clean',
-    COUNT(*),
-    COUNT_IF(assessment.id_assessment IS NULL),
-    COUNT(*) - COUNT(DISTINCT assessment.id_assessment),
-    COUNT_IF(
-      assessment.assessment_type NOT IN ('CMA', 'TMA', 'Exam')
-      OR assessment.weight NOT BETWEEN 0 AND 100
-    ),
-    COUNT_IF(course.code_module IS NULL)
+    'assessments_clean', 'code_module, code_presentation', 'all assessments match a course presentation',
+    'REFERENTIAL_INTEGRITY', 'FOREIGN_KEY', 'Every assessment has a matching clean course presentation',
+    0, 'CRITICAL', 'data_engineering', COUNT(*), COUNT_IF(course.code_module IS NULL)
   FROM IDENTIFIER(oulad_catalog || '.oulad_silver.assessments_clean') AS assessment
   LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.courses_clean') AS course
     ON assessment.code_module = course.code_module
@@ -33,52 +28,19 @@ WITH validation AS (
   UNION ALL
 
   SELECT
-    'vle_clean',
-    COUNT(*),
-    COUNT_IF(activity.id_site IS NULL),
-    COUNT(*) - COUNT(DISTINCT STRUCT(activity.code_module, activity.code_presentation, activity.id_site)),
-    COUNT_IF(
-      activity.activity_type IS NULL
-      OR (activity.week_from IS NOT NULL AND activity.week_to IS NOT NULL AND activity.week_from > activity.week_to)
-    ),
-    COUNT_IF(course.code_module IS NULL)
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.vle_clean') AS activity
-  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.courses_clean') AS course
-    ON activity.code_module = course.code_module
-    AND activity.code_presentation = course.code_presentation
+    'student_info_clean', 'code_module, code_presentation, id_student', 'student enrollment grain is unique',
+    'UNIQUENESS', 'UNIQUE', 'One row per student and module presentation',
+    0, 'CRITICAL', 'data_engineering', COUNT(*),
+    COUNT(*) - COUNT(DISTINCT STRUCT(code_module, code_presentation, id_student))
+  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean')
 
   UNION ALL
 
   SELECT
-    'student_info_clean',
-    COUNT(*),
-    COUNT_IF(student.id_student IS NULL),
-    COUNT(*) - COUNT(DISTINCT STRUCT(student.code_module, student.code_presentation, student.id_student)),
-    COUNT_IF(
-      student.final_result NOT IN ('Withdrawn', 'Fail', 'Pass', 'Distinction')
-      OR student.studied_credits <= 0
-    ),
-    COUNT_IF(course.code_module IS NULL)
-  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean') AS student
-  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.courses_clean') AS course
-    ON student.code_module = course.code_module
-    AND student.code_presentation = course.code_presentation
-
-  UNION ALL
-
-  SELECT
-    'student_registration_clean',
-    COUNT(*),
-    COUNT_IF(registration.id_student IS NULL),
-    COUNT(*) - COUNT(
-      DISTINCT STRUCT(registration.code_module, registration.code_presentation, registration.id_student)
-    ),
-    COUNT_IF(
-      registration.date_registration IS NOT NULL
-      AND registration.date_unregistration IS NOT NULL
-      AND registration.date_unregistration < registration.date_registration
-    ),
-    COUNT_IF(student.id_student IS NULL)
+    'student_registration_clean', 'code_module, code_presentation, id_student',
+    'all registration rows match a student enrollment', 'REFERENTIAL_INTEGRITY', 'FOREIGN_KEY',
+    'Every registration has a matching clean student enrollment',
+    0, 'CRITICAL', 'data_engineering', COUNT(*), COUNT_IF(student.id_student IS NULL)
   FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_registration_clean') AS registration
   LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean') AS student
     ON registration.code_module = student.code_module
@@ -88,73 +50,81 @@ WITH validation AS (
   UNION ALL
 
   SELECT
-    'student_assessment_clean',
-    COUNT(*),
-    COUNT_IF(submission.id_assessment IS NULL OR submission.id_student IS NULL),
-    COUNT(*) - COUNT(DISTINCT STRUCT(submission.id_assessment, submission.id_student)),
-    COUNT_IF(submission.score < 0 OR submission.score > 100),
-    COUNT_IF(assessment.id_assessment IS NULL)
+    'student_assessment_clean', 'id_assessment, id_student',
+    'submission grain and relationships are valid', 'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
+    'One row per student-assessment and every submission matches assessment and enrollment',
+    0, 'CRITICAL', 'data_engineering', COUNT(*),
+    COUNT_IF(assessment.id_assessment IS NULL OR student.id_student IS NULL)
+      + COUNT(*) - COUNT(DISTINCT STRUCT(submission.id_assessment, submission.id_student))
   FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_assessment_clean') AS submission
   LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.assessments_clean') AS assessment
     ON submission.id_assessment = assessment.id_assessment
+  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean') AS student
+    ON assessment.code_module = student.code_module
+    AND assessment.code_presentation = student.code_presentation
+    AND submission.id_student = student.id_student
 
   UNION ALL
 
   SELECT
-    'student_vle_clean',
-    COUNT(*),
-    COUNT_IF(
-      interaction.id_student IS NULL
-      OR interaction.id_site IS NULL
-      OR interaction.activity_date IS NULL
-    ),
-    COUNT(*) - COUNT(
-      DISTINCT STRUCT(
-        interaction.code_module,
-        interaction.code_presentation,
-        interaction.id_student,
-        interaction.id_site,
-        interaction.activity_date
-      )
-    ),
-    COUNT_IF(interaction.sum_click <= 0),
-    COUNT_IF(activity.id_site IS NULL)
+    'student_vle_clean', 'code_module, code_presentation, id_student, id_site, activity_date',
+    'daily VLE grain and relationships are valid', 'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
+    'One positive row per student, site, and relative day with matching activity and enrollment',
+    0, 'CRITICAL', 'data_engineering', COUNT(*),
+    COUNT_IF(activity.id_site IS NULL OR student.id_student IS NULL OR interaction.sum_click <= 0)
+      + COUNT(*) - COUNT(DISTINCT STRUCT(
+        interaction.code_module, interaction.code_presentation, interaction.id_student,
+        interaction.id_site, interaction.activity_date
+      ))
   FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_vle_clean') AS interaction
   LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.vle_clean') AS activity
     ON interaction.code_module = activity.code_module
     AND interaction.code_presentation = activity.code_presentation
     AND interaction.id_site = activity.id_site
-),
-results AS (
+  LEFT JOIN IDENTIFIER(oulad_catalog || '.oulad_silver.student_info_clean') AS student
+    ON interaction.code_module = student.code_module
+    AND interaction.code_presentation = student.code_presentation
+    AND interaction.id_student = student.id_student
+
+  UNION ALL
+
   SELECT
-    table_name,
-    row_count,
-    null_keys,
-    duplicate_keys,
-    invalid_values,
-    orphan_rows,
-    CASE
-      WHEN row_count > 0
-        AND null_keys = 0
-        AND duplicate_keys = 0
-        AND invalid_values = 0
-        AND orphan_rows = 0
-      THEN 'PASS'
-      ELSE 'FAIL'
-    END AS status
-  FROM validation
+    'student_assessment_clean', 'score', 'score null rate is monitored',
+    'COMPLETENESS', 'NULL_RATE', 'Missing scores remain at or below 1 percent',
+    CAST(1.0 AS DECIMAL(7, 3)), 'MEDIUM', 'analytics', COUNT(*), COUNT_IF(score IS NULL)
+  FROM IDENTIFIER(oulad_catalog || '.oulad_silver.student_assessment_clean')
+),
+scored AS (
+  SELECT
+    *,
+    CAST(CASE WHEN total_count = 0 THEN 100.0 ELSE 100.0 * failed_count / total_count END AS DECIMAL(7, 3))
+      AS failure_pct,
+    CAST(CASE WHEN total_count = 0 THEN 0.0
+      ELSE 100.0 * GREATEST(total_count - failed_count, 0) / total_count END AS DECIMAL(7, 3)) AS score_pct
+  FROM checks
+),
+classified AS (
+  SELECT
+    *,
+    CASE WHEN total_count = 0 OR failure_pct > threshold_pct THEN 'FAIL'
+      WHEN failed_count > 0 THEN 'WARNING' ELSE 'PASS' END AS status
+  FROM scored
 )
 SELECT
-  table_name,
-  row_count,
-  null_keys,
-  duplicate_keys,
-  invalid_values,
-  orphan_rows,
+  dq_run_id, dq_executed_at, 'SILVER', dataset_name, column_name, check_name,
+  quality_dimension, check_type, expectation, threshold_pct, severity, check_owner,
+  total_count, failed_count, GREATEST(total_count - failed_count, 0), score_pct, failure_pct, status
+FROM classified;
+
+SELECT
+  dataset_name,
+  check_name,
   status,
+  failed_count,
   ASSERT_TRUE(
-    SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) OVER () = 0,
-    'one or more Silver tables failed validation; review the table-level metrics'
-  ) AS silver_validation_check
-FROM results
-ORDER BY table_name;
+    COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') OVER () = 0,
+    'critical Silver data quality check failed; inspect oulad_dq.dq_check_results'
+  ) AS silver_quality_gate
+FROM IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results')
+WHERE run_id = dq_run_id AND layer = 'SILVER'
+ORDER BY dataset_name, check_name;

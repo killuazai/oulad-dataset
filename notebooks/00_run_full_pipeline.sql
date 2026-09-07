@@ -52,3 +52,7 @@
 -- COMMAND ----------
 
 -- MAGIC %run ../tests/13_validate_analytics
+
+-- COMMAND ----------
+
+-- MAGIC %run ../src/05_data_quality/sql/14_dq_dashboard_views

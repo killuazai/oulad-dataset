@@ -14,7 +14,7 @@ OULAD is a fixed research snapshot, so `CREATE OR REPLACE TABLE` is easier to re
 
 ## Separate transformation and validation files
 
-Transformation files create tables; test files decide whether those tables are trustworthy. Runner notebooks always place the test directly after the layer it protects.
+Transformation files create tables; test files persist evidence and decide whether those tables are trustworthy. Runner notebooks always place the test directly after the layer it protects.
 
 ## Preserve relative dates
 
@@ -27,6 +27,18 @@ The official source contains multiple rows for some learner, VLE site, and day c
 ## Deterministic hashed Gold keys
 
 Compound natural keys are hashed to fixed-width Gold keys. Original identifiers remain on facts and dimensions, which keeps debugging straightforward and makes hashes reproducible.
+
+## Conformed dimensions without BI snowball joins
+
+Student, demographics, module presentation, relative date, assessment, and VLE activity are reusable dimensions. Every fact carries its relevant keys directly. Descriptive dimensions never join to other dimensions in the BI model.
+
+## Separate student identity and demographics
+
+The official snapshot contains students whose demographic values differ across enrollments. `dim_student` therefore stores only stable identity, while `dim_demographics` stores a reusable profile. Each fact receives the correct profile from its module-presentation enrollment.
+
+## Persistent quality history
+
+Business data is full-refreshed, but `dq_check_results` is append-only. The dashboard uses evaluated-count-weighted scores rather than averaging check percentages, and critical failures are the only checks that block the pipeline.
 
 ## Transparent risk screening
 

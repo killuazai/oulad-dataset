@@ -2,15 +2,16 @@
 
 ## Branch workflow
 
-1. Create a focused branch from `main`.
-2. Put exploratory SQL in `queries/`.
-3. Put reusable pipeline SQL in the matching numbered `src/` layer.
-4. Add or update a validation query in `tests/` for every new production table.
-5. Run the local checks before opening a pull request.
+1. Pull the latest `main` and create a focused feature or fix branch.
+2. Develop and test exploratory SQL in `queries/` or a shared Databricks workspace.
+3. Move finalized reusable SQL into the matching numbered `src/` layer.
+4. Add or update a persistent validation check in `tests/` for every production table.
+5. Run the local checks, commit, push the branch, and open a pull request.
+6. Ask a teammate to review the grain, joins, checks, and documentation before merge.
 
 ```bash
 python3 scripts/check_repository.py
-sqlfluff lint src tests queries --dialect databricks
+sqlfluff lint src tests queries dashboards --dialect databricks
 ```
 
 ## SQL conventions
@@ -22,6 +23,8 @@ sqlfluff lint src tests queries --dialect databricks
 - Use `TRY_CAST` at ingestion boundaries and make rejected values visible in validation.
 - Keep one stable grain per table and document it.
 - Prefer explicit column lists so source changes cannot silently alter outputs.
+- Join BI facts directly to conformed dimensions; do not create dimension-to-dimension snowball joins.
+- Follow [`docs/naming_conventions.md`](docs/naming_conventions.md).
 
 ## Numbering
 
@@ -32,5 +35,6 @@ Execution order is encoded in filenames. Insert a new file in its logical layer 
 - [ ] The query has a documented purpose and grain.
 - [ ] Inputs and outputs use the intended layer.
 - [ ] A corresponding test covers keys, required fields, domains, and relationships.
+- [ ] The check includes expectation, threshold, severity, and owner metadata.
 - [ ] Local structure and SQL checks pass.
 - [ ] Documentation reflects any model or threshold change.

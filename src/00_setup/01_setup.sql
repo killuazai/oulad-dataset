@@ -5,11 +5,36 @@
 
 DECLARE OR REPLACE VARIABLE oulad_catalog STRING DEFAULT 'workspace';
 DECLARE OR REPLACE VARIABLE oulad_source_path STRING DEFAULT '/Volumes/workspace/default/oulad';
+DECLARE OR REPLACE VARIABLE dq_run_id STRING DEFAULT UUID();
+DECLARE OR REPLACE VARIABLE dq_executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP();
 
 CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_bronze');
 CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_silver');
 CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_gold');
 CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_analytics');
+CREATE SCHEMA IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_dq');
+
+CREATE TABLE IF NOT EXISTS IDENTIFIER(oulad_catalog || '.oulad_dq.dq_check_results') (
+  run_id STRING NOT NULL,
+  executed_at TIMESTAMP NOT NULL,
+  layer STRING NOT NULL,
+  dataset_name STRING NOT NULL,
+  column_name STRING,
+  check_name STRING NOT NULL,
+  quality_dimension STRING NOT NULL,
+  check_type STRING NOT NULL,
+  expectation STRING NOT NULL,
+  threshold_pct DECIMAL(7, 3) NOT NULL,
+  severity STRING NOT NULL,
+  check_owner STRING NOT NULL,
+  total_count BIGINT NOT NULL,
+  failed_count BIGINT NOT NULL,
+  passed_count BIGINT NOT NULL,
+  score_pct DECIMAL(7, 3) NOT NULL,
+  failure_pct DECIMAL(7, 3) NOT NULL,
+  status STRING NOT NULL
+)
+USING DELTA;
 
 WITH expected_files AS (
   SELECT EXPLODE(

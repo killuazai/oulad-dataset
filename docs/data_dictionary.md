@@ -1,100 +1,64 @@
 # Data dictionary
 
-## Shared source identifiers
+## Shared identifiers
 
 | Column | Meaning |
 | --- | --- |
 | `code_module` | Anonymized module identifier |
-| `code_presentation` | Anonymized presentation identifier, including year and start period |
-| `id_student` | Anonymized learner identifier |
+| `code_presentation` | Anonymized year and start-term identifier |
+| `id_student` | Anonymized student identifier |
 | `id_assessment` | Assessment identifier |
-| `id_site` | VLE activity/site identifier |
+| `id_site` | VLE activity identifier |
 
 ## Bronze ingestion metadata
 
-Every Bronze table adds:
-
 | Column | Meaning |
 | --- | --- |
-| `_rescued_data` | Source fields that could not be parsed into the expected schema |
-| `source_file` | Input file path captured from Databricks file metadata |
+| `_rescued_data` | Values that did not match the explicit source schema |
+| `source_file` | Input path captured from Databricks file metadata |
 | `ingested_at` | Timestamp of the full-refresh load |
 
 ## Gold dimensions
 
-### `dim_course_presentation`
-
-| Column | Meaning |
-| --- | --- |
-| `course_presentation_key` | Hash of module and presentation |
-| `module_presentation_length` | Presentation duration in days |
-
-### `dim_student`
-
-| Column | Meaning |
-| --- | --- |
-| `student_key` | Hash of `id_student` |
-| `gender` | Source gender category |
-| `region` | Learner region |
-| `highest_education` | Highest education category reported in OULAD |
-| `imd_band` | Index of Multiple Deprivation band; nullable in the source |
-| `age_band` | Source age category |
-| `disability` | `Y` or `N` disability indicator |
-
-### `dim_assessment`
-
-| Column | Meaning |
-| --- | --- |
-| `assessment_key` | Hash of `id_assessment` |
-| `assessment_type` | Computer-marked assessment, tutor-marked assessment, or exam |
-| `assessment_date` | Scheduled day offset; exams may be null |
-| `weight` | Assessment contribution percentage |
-
-### `dim_vle_activity`
-
-| Column | Meaning |
-| --- | --- |
-| `vle_activity_key` | Hash of course presentation and site identifier |
-| `activity_type` | Normalized VLE activity category |
-| `week_from`, `week_to` | Optional availability window in presentation weeks |
+| Table | Key | Important attributes |
+| --- | --- | --- |
+| `dim_student` | `student_key` | `id_student` |
+| `dim_demographics` | `demographics_key` | `gender`, `region`, `highest_education`, `imd_band`, `age_band`, `disability` |
+| `dim_module_presentation` | `module_presentation_key` | `code_module`, `code_presentation`, year, term, duration |
+| `dim_assessment` | `assessment_key` | `id_assessment`, type, relative due day, weight |
+| `dim_vle_activity` | `vle_activity_key` | `id_site`, activity type, optional availability weeks |
+| `dim_relative_date` | `relative_date_key` | `relative_day`, `relative_week`, `course_phase` |
 
 ## Gold facts
 
-### `fact_student_course`
+### `fact_student_enrollment`
 
-| Column | Meaning |
-| --- | --- |
-| `student_course_key` | Hash of module, presentation, and learner |
-| `num_of_prev_attempts` | Previous attempts at the module |
-| `studied_credits` | Credits studied during the presentation |
-| `date_registration` | Registration day offset; nullable |
-| `date_unregistration` | Unregistration day offset; nullable |
-| `final_result` | `Withdrawn`, `Fail`, `Pass`, or `Distinction` |
+One row per student and module presentation. It contains direct keys to student, demographics, module presentation, registration date, and unregistration date. Additive measures include `enrollment_count`, `withdrawn_count`, `failed_count`, `passed_count`, and `distinction_count`; other context includes credits, prior attempts, relative registration dates, and final result.
 
 ### `fact_assessment_submission`
 
-| Column | Meaning |
-| --- | --- |
-| `assessment_submission_key` | Hash of assessment and learner |
-| `date_submitted` | Submission day offset |
-| `days_from_due_date` | Submission offset minus assessment due offset; positive means late |
-| `is_banked` | Whether a previous result was transferred |
-| `score` | Score from 0 through 100; nullable |
-| `passed_assessment` | True when a non-null score is at least 40 |
+One row per student and assessment. It contains direct keys to student, demographics, module presentation, assessment, submitted date, and due date. Measures include `submission_count`, `score`, `days_from_due_date`, and `passed_assessment`. Null scores are valid source values and remain null.
 
 ### `fact_vle_interaction`
 
+One row per student, VLE site, and relative day in one module presentation. It contains direct keys to student, demographics, module presentation, VLE activity, and activity date. Measures are `sum_click` and `interaction_count`.
+
+## Data quality results
+
 | Column | Meaning |
 | --- | --- |
-| `vle_interaction_key` | Hash of course, learner, site, and activity day |
-| `activity_date` | Day offset of the interaction |
-| `sum_click` | Clicks summed across source rows for the learner-site-day |
+| `run_id`, `executed_at` | Pipeline execution identity and time |
+| `layer`, `dataset_name`, `column_name` | Location of the evaluated data |
+| `check_name`, `check_type`, `quality_dimension` | Check definition and quality category |
+| `expectation`, `threshold_pct`, `severity`, `check_owner` | Operational rule and accountability |
+| `total_count`, `failed_count`, `passed_count` | Evaluated and affected value counts |
+| `score_pct`, `failure_pct`, `status` | Calculated quality result |
 
-## Analytics tables
+## Analytics outputs
 
 | Table | Grain | Purpose |
 | --- | --- | --- |
-| `learner_outcomes` | Course presentation | Enrollment and result counts and rates |
-| `student_engagement` | Student-course | Active days, activities used, click totals, and activity span |
-| `assessment_performance` | Course presentation and assessment type | Submission, score, pass, and lateness metrics |
-| `at_risk_students` | Student-course | Transparent risk signals and screening level |
+| `learner_outcomes` | Module presentation | Enrollment and outcome counts and rates |
+| `student_engagement` | Student enrollment | Active days, activity count, clicks, and activity span |
+| `assessment_performance` | Module presentation and assessment type | Score, pass, and lateness metrics |
+| `at_risk_students` | Student enrollment | Transparent screening signals for review |
