@@ -1,0 +1,1070 @@
+{
+  "datasets": [
+    {
+      "name": "genie_risk_summary",
+      "displayName": "Risk Summary",
+      "config": {
+        "version": "1.1",
+        "source": "`ftw-week-07`.`04-analytics`.genie_risk_summary",
+        "dimensions": [
+          {
+            "name": "code_module",
+            "expr": "code_module"
+          },
+          {
+            "name": "code_presentation",
+            "expr": "code_presentation"
+          },
+          {
+            "name": "module_presentation",
+            "expr": "CONCAT(code_module, ' - ', code_presentation)"
+          },
+          {
+            "name": "risk_level",
+            "expr": "risk_level"
+          },
+          {
+            "name": "risk_level_order",
+            "expr": "risk_level_order"
+          }
+        ],
+        "measures": [
+          {
+            "name": "student_enrollments",
+            "expr": "SUM(student_enrollments)"
+          },
+          {
+            "name": "withdrawn_students",
+            "expr": "SUM(withdrawn_students)"
+          },
+          {
+            "name": "observed_withdrawal_rate_pct",
+            "expr": "100 * SUM(withdrawn_students) / NULLIF(SUM(student_enrollments), 0)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "genie_engagement_outcomes",
+      "displayName": "Engagement Outcomes",
+      "config": {
+        "version": "1.1",
+        "source": "`ftw-week-07`.`04-analytics`.genie_engagement_outcomes",
+        "dimensions": [
+          {
+            "name": "final_result",
+            "expr": "final_result"
+          }
+        ],
+        "measures": [
+          {
+            "name": "student_enrollments",
+            "expr": "SUM(student_enrollments)"
+          },
+          {
+            "name": "average_active_days",
+            "expr": "SUM(average_active_days * student_enrollments) / NULLIF(SUM(student_enrollments), 0)"
+          },
+          {
+            "name": "average_total_clicks",
+            "expr": "SUM(average_total_clicks * student_enrollments) / NULLIF(SUM(student_enrollments), 0)"
+          },
+          {
+            "name": "median_total_clicks",
+            "expr": "SUM(median_total_clicks * student_enrollments) / NULLIF(SUM(student_enrollments), 0)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "genie_demographic_outcomes",
+      "displayName": "Demographic Outcomes",
+      "config": {
+        "version": "1.1",
+        "source": "`ftw-week-07`.`04-analytics`.genie_demographic_outcomes",
+        "dimensions": [
+          {
+            "name": "gender",
+            "expr": "gender"
+          },
+          {
+            "name": "age_band",
+            "expr": "age_band"
+          },
+          {
+            "name": "highest_education",
+            "expr": "highest_education"
+          },
+          {
+            "name": "imd_band",
+            "expr": "imd_band"
+          }
+        ],
+        "measures": [
+          {
+            "name": "student_enrollments",
+            "expr": "SUM(student_enrollments)"
+          },
+          {
+            "name": "withdrawn_students",
+            "expr": "SUM(withdrawn_students)"
+          },
+          {
+            "name": "withdrawal_rate_pct",
+            "expr": "100 * SUM(withdrawn_students) / NULLIF(SUM(student_enrollments), 0)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "learner_outcomes",
+      "displayName": "Learner Outcomes",
+      "config": {
+        "version": "1.1",
+        "source": "`ftw-week-07`.`04-analytics`.learner_outcomes",
+        "dimensions": [
+          {
+            "name": "code_module",
+            "expr": "code_module"
+          },
+          {
+            "name": "code_presentation",
+            "expr": "code_presentation"
+          },
+          {
+            "name": "module_presentation",
+            "expr": "CONCAT(code_module, ' - ', code_presentation)"
+          }
+        ],
+        "measures": [
+          {
+            "name": "enrolled_students",
+            "expr": "SUM(enrolled_students)"
+          },
+          {
+            "name": "withdrawn_students",
+            "expr": "SUM(withdrawn_students)"
+          },
+          {
+            "name": "failed_students",
+            "expr": "SUM(failed_students)"
+          },
+          {
+            "name": "passed_students",
+            "expr": "SUM(passed_students)"
+          },
+          {
+            "name": "distinction_students",
+            "expr": "SUM(distinction_students)"
+          },
+          {
+            "name": "successful_students",
+            "expr": "SUM(passed_students + distinction_students)"
+          },
+          {
+            "name": "successful_outcome_rate_pct",
+            "expr": "100 * SUM(passed_students + distinction_students) / NULLIF(SUM(enrolled_students), 0)"
+          },
+          {
+            "name": "withdrawal_rate_pct",
+            "expr": "100 * SUM(withdrawn_students) / NULLIF(SUM(enrolled_students), 0)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "genie_weekly_activity",
+      "displayName": "Weekly Activity",
+      "config": {
+        "version": "1.1",
+        "source": "`ftw-week-07`.`04-analytics`.genie_weekly_activity",
+        "dimensions": [
+          {
+            "name": "code_module",
+            "expr": "code_module"
+          },
+          {
+            "name": "code_presentation",
+            "expr": "code_presentation"
+          },
+          {
+            "name": "relative_week",
+            "expr": "relative_week"
+          }
+        ],
+        "measures": [
+          {
+            "name": "total_clicks",
+            "expr": "SUM(total_clicks)"
+          },
+          {
+            "name": "active_students",
+            "expr": "SUM(active_students)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "assessment_performance",
+      "displayName": "Assessment Performance",
+      "config": {
+        "version": "1.1",
+        "source": "`ftw-week-07`.`04-analytics`.assessment_performance",
+        "dimensions": [
+          {
+            "name": "code_module",
+            "expr": "code_module"
+          },
+          {
+            "name": "code_presentation",
+            "expr": "code_presentation"
+          },
+          {
+            "name": "assessment_type",
+            "expr": "assessment_type"
+          }
+        ],
+        "measures": [
+          {
+            "name": "submission_count",
+            "expr": "SUM(submission_count)"
+          },
+          {
+            "name": "submitting_students",
+            "expr": "SUM(submitting_students)"
+          },
+          {
+            "name": "missing_score_count",
+            "expr": "SUM(missing_score_count)"
+          },
+          {
+            "name": "scored_submissions",
+            "expr": "SUM(submission_count - missing_score_count)"
+          },
+          {
+            "name": "weighted_average_score",
+            "expr": "SUM(average_score * (submission_count - missing_score_count)) / NULLIF(SUM(submission_count - missing_score_count), 0)"
+          },
+          {
+            "name": "median_score",
+            "expr": "SUM(median_score * submission_count) / NULLIF(SUM(submission_count), 0)"
+          },
+          {
+            "name": "pass_rate_pct",
+            "expr": "100 * SUM(pass_rate * submission_count) / NULLIF(SUM(submission_count), 0)"
+          },
+          {
+            "name": "late_submission_rate_pct",
+            "expr": "100 * SUM(late_submission_rate * submission_count) / NULLIF(SUM(submission_count), 0)"
+          }
+        ]
+      }
+    }
+  ],
+  "pages": [
+    {
+      "name": "ed62f6c5",
+      "displayName": "Untitled page",
+      "layout": [
+        {
+          "widget": {
+            "name": "kpi_enrolled",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "learner_outcomes",
+                  "fields": [
+                    {
+                      "name": "measure(enrolled_students)",
+                      "expression": "MEASURE(`enrolled_students`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Total Enrolled"
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(enrolled_students)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_successful",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "learner_outcomes",
+                  "fields": [
+                    {
+                      "name": "measure(successful_students)",
+                      "expression": "MEASURE(`successful_students`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Successful Students"
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(successful_students)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_success_rate",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "learner_outcomes",
+                  "fields": [
+                    {
+                      "name": "measure(successful_outcome_rate_pct)",
+                      "expression": "MEASURE(`successful_outcome_rate_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Success Rate"
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(successful_outcome_rate_pct)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_withdrawal_rate",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "learner_outcomes",
+                  "fields": [
+                    {
+                      "name": "measure(withdrawal_rate_pct)",
+                      "expression": "MEASURE(`withdrawal_rate_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Withdrawal Rate"
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(withdrawal_rate_pct)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_avg_score",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "assessment_performance",
+                  "fields": [
+                    {
+                      "name": "measure(weighted_average_score)",
+                      "expression": "MEASURE(`weighted_average_score`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Average Assessment Score"
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(weighted_average_score)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_pass_rate",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "assessment_performance",
+                  "fields": [
+                    {
+                      "name": "measure(pass_rate_pct)",
+                      "expression": "MEASURE(`pass_rate_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Assessment Pass Rate"
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(pass_rate_pct)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "outcome_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "learner_outcomes",
+                  "fields": [
+                    {
+                      "name": "module_presentation",
+                      "expression": "`module_presentation`"
+                    },
+                    {
+                      "name": "measure(enrolled_students)",
+                      "expression": "MEASURE(`enrolled_students`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Enrollment Outcomes by Module"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "module_presentation",
+                  "displayName": "module_presentation",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(enrolled_students)",
+                  "displayName": "enrolled_students",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "module_presentation",
+                  "displayName": "module_presentation",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "engagement_by_result",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "genie_engagement_outcomes",
+                  "fields": [
+                    {
+                      "name": "final_result",
+                      "expression": "`final_result`"
+                    },
+                    {
+                      "name": "measure(average_total_clicks)",
+                      "expression": "MEASURE(`average_total_clicks`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Engagement Metrics by Final Result"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "final_result",
+                  "displayName": "final_result",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(average_total_clicks)",
+                  "displayName": "average_total_clicks",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "final_result",
+                  "displayName": "final_result",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "weekly_activity_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "genie_weekly_activity",
+                  "fields": [
+                    {
+                      "name": "code_module",
+                      "expression": "`code_module`"
+                    },
+                    {
+                      "name": "relative_week",
+                      "expression": "`relative_week`"
+                    },
+                    {
+                      "name": "measure(total_clicks)",
+                      "expression": "MEASURE(`total_clicks`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Weekly VLE Activity Trend",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "relative_week",
+                  "displayName": "relative_week",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(total_clicks)",
+                  "displayName": "total_clicks",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "code_module",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "risk_distribution",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "genie_risk_summary",
+                  "fields": [
+                    {
+                      "name": "risk_level",
+                      "expression": "`risk_level`"
+                    },
+                    {
+                      "name": "measure(student_enrollments)",
+                      "expression": "MEASURE(`student_enrollments`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Risk Level Distribution"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "risk_level",
+                  "displayName": "risk_level",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(student_enrollments)",
+                  "displayName": "student_enrollments",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "risk_level",
+                  "displayName": "risk_level",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "risk_withdrawal_rates",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "genie_risk_summary",
+                  "fields": [
+                    {
+                      "name": "risk_level",
+                      "expression": "`risk_level`"
+                    },
+                    {
+                      "name": "measure(observed_withdrawal_rate_pct)",
+                      "expression": "MEASURE(`observed_withdrawal_rate_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Withdrawal Rates by Risk Level"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "risk_level",
+                  "displayName": "risk_level",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(observed_withdrawal_rate_pct)",
+                  "displayName": "observed_withdrawal_rate_pct",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "risk_level",
+                  "displayName": "risk_level",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 10,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "assessment_scores",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "assessment_performance",
+                  "fields": [
+                    {
+                      "name": "assessment_type",
+                      "expression": "`assessment_type`"
+                    },
+                    {
+                      "name": "measure(weighted_average_score)",
+                      "expression": "MEASURE(`weighted_average_score`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Assessment Performance by Type"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "assessment_type",
+                  "displayName": "assessment_type",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(weighted_average_score)",
+                  "displayName": "weighted_average_score",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "assessment_type",
+                  "displayName": "assessment_type",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "demographics_withdrawal",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "genie_demographic_outcomes",
+                  "fields": [
+                    {
+                      "name": "age_band",
+                      "expression": "`age_band`"
+                    },
+                    {
+                      "name": "measure(withdrawal_rate_pct)",
+                      "expression": "MEASURE(`withdrawal_rate_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Withdrawal Rates by Demographics"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "age_band",
+                  "displayName": "age_band",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(withdrawal_rate_pct)",
+                  "displayName": "withdrawal_rate_pct",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "age_band",
+                  "displayName": "age_band",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 14,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "outcomes_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "learner_outcomes",
+                  "fields": [
+                    {
+                      "name": "module_presentation",
+                      "expression": "`module_presentation`"
+                    },
+                    {
+                      "name": "measure(enrolled_students)",
+                      "expression": "MEASURE(`enrolled_students`)"
+                    },
+                    {
+                      "name": "measure(successful_students)",
+                      "expression": "MEASURE(`successful_students`)"
+                    },
+                    {
+                      "name": "measure(successful_outcome_rate_pct)",
+                      "expression": "MEASURE(`successful_outcome_rate_pct`)"
+                    },
+                    {
+                      "name": "measure(withdrawal_rate_pct)",
+                      "expression": "MEASURE(`withdrawal_rate_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Detailed Outcomes Table"
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "module_presentation"
+                  },
+                  {
+                    "fieldName": "measure(enrolled_students)"
+                  },
+                  {
+                    "fieldName": "measure(successful_students)"
+                  },
+                  {
+                    "fieldName": "measure(successful_outcome_rate_pct)"
+                  },
+                  {
+                    "fieldName": "measure(withdrawal_rate_pct)"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 12,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "9d71dfe8",
+      "displayName": "Global Filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

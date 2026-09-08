@@ -1,0 +1,2333 @@
+{
+  "datasets": [
+    {
+      "name": "dq_volume_history",
+      "displayName": "DQ Volume History",
+      "queryLines": [
+        "-- v2 params\n",
+        "SELECT\n",
+        "  dataset_name,\n",
+        "  observed_row_count,\n",
+        "  failed_count AS difference_from_baseline,\n",
+        "  status,\n",
+        "  executed_at\n",
+        "FROM\n",
+        "  genie_dq_volume_history\n",
+        "WHERE\n",
+        "  executed_at\n",
+        "    = (\n",
+        "      SELECT\n",
+        "        MAX(executed_at)\n",
+        "      FROM\n",
+        "        genie_dq_volume_history\n",
+        "    )\n",
+        "  AND layer = 'BRONZE'\n",
+        "  AND (\n",
+        "    (:vol_dataset_name IS NULL OR cardinality(:vol_dataset_name) = 0)\n",
+        "    OR array_contains(:vol_dataset_name, dataset_name)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:vol_status IS NULL OR cardinality(:vol_status) = 0)\n",
+        "    OR array_contains(:vol_status, status)\n",
+        "  )\n",
+        "ORDER BY\n",
+        "  dataset_name"
+      ],
+      "parameters": [
+        {
+          "displayName": "Dataset (Volume)",
+          "keyword": "vol_dataset_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Status (Volume)",
+          "keyword": "vol_status",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "catalog": "ftw-week-07",
+      "schema": "05-data-quality"
+    },
+    {
+      "name": "dq_dataset_scores",
+      "displayName": "DQ Dataset Scores",
+      "queryLines": [
+        "-- v2 params\n",
+        "SELECT\n",
+        "  *,\n",
+        "  CASE\n",
+        "    WHEN weighted_quality_score_pct IS NULL THEN 'Not Measured'\n",
+        "    WHEN weighted_quality_score_pct >= 99 THEN 'Pass'\n",
+        "    WHEN weighted_quality_score_pct >= 95 THEN 'Warning'\n",
+        "    ELSE 'Fail'\n",
+        "  END AS score_category\n",
+        "FROM\n",
+        "  (\n",
+        "    SELECT\n",
+        "      layer,\n",
+        "      dataset_name,\n",
+        "      COUNT(*) AS total_checks,\n",
+        "      COUNT_IF(status = 'PASS') AS passed_checks,\n",
+        "      COUNT_IF(status = 'WARNING') AS warning_checks,\n",
+        "      COUNT_IF(status = 'FAIL') AS failed_checks,\n",
+        "      SUM(failed_count) AS failed_rule_evaluations,\n",
+        "      ROUND(\n",
+        "        100.0 * SUM(passed_count) / NULLIF(SUM(total_count), 0),\n",
+        "        3\n",
+        "      ) AS weighted_quality_score_pct\n",
+        "    FROM\n",
+        "      `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`\n",
+        "    WHERE\n",
+        "      (\n",
+        "        (:layer IS NULL OR cardinality(:layer) = 0)\n",
+        "        OR array_contains(:layer, layer)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:dataset_name IS NULL OR cardinality(:dataset_name) = 0)\n",
+        "        OR array_contains(:dataset_name, dataset_name)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:quality_dimension IS NULL OR cardinality(:quality_dimension) = 0)\n",
+        "        OR array_contains(:quality_dimension, quality_dimension)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:status IS NULL OR cardinality(:status) = 0)\n",
+        "        OR array_contains(:status, status)\n",
+        "      )\n",
+        "    GROUP BY\n",
+        "      layer,\n",
+        "      dataset_name\n",
+        "  ) t\n",
+        "ORDER BY\n",
+        "  CASE\n",
+        "    WHEN failed_checks > 0 THEN 0\n",
+        "    ELSE 1\n",
+        "  END,\n",
+        "  dataset_name"
+      ],
+      "parameters": [
+        {
+          "displayName": "Validation Suite",
+          "keyword": "layer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dataset",
+          "keyword": "dataset_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Quality Dimension",
+          "keyword": "quality_dimension",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Status",
+          "keyword": "status",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "catalog": "ftw-week-07",
+      "schema": "05-data-quality"
+    },
+    {
+      "name": "dq_daily_history",
+      "displayName": "DQ Daily History",
+      "queryLines": [
+        "SELECT\n",
+        "  *\n",
+        "FROM\n",
+        "  genie_dq_daily_history\n",
+        "ORDER BY\n",
+        "  run_date"
+      ],
+      "catalog": "ftw-week-07",
+      "schema": "05-data-quality"
+    },
+    {
+      "name": "dq_problem_areas",
+      "displayName": "DQ Problem Areas",
+      "queryLines": [
+        "-- v2 params\n",
+        "SELECT\n",
+        "  executed_at,\n",
+        "  layer,\n",
+        "  dataset_name,\n",
+        "  column_name,\n",
+        "  check_name,\n",
+        "  quality_dimension,\n",
+        "  check_type,\n",
+        "  expectation,\n",
+        "  threshold_pct,\n",
+        "  severity,\n",
+        "  check_owner,\n",
+        "  total_count,\n",
+        "  failed_count,\n",
+        "  failure_pct,\n",
+        "  status\n",
+        "FROM\n",
+        "  `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`\n",
+        "WHERE\n",
+        "  status IN ('FAIL', 'WARNING')\n",
+        "  AND (\n",
+        "    (:layer IS NULL OR cardinality(:layer) = 0)\n",
+        "    OR array_contains(:layer, layer)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:dataset_name IS NULL OR cardinality(:dataset_name) = 0)\n",
+        "    OR array_contains(:dataset_name, dataset_name)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:quality_dimension IS NULL OR cardinality(:quality_dimension) = 0)\n",
+        "    OR array_contains(:quality_dimension, quality_dimension)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:status IS NULL OR cardinality(:status) = 0)\n",
+        "    OR array_contains(:status, status)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:severity IS NULL OR cardinality(:severity) = 0)\n",
+        "    OR array_contains(:severity, severity)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:check_owner IS NULL OR cardinality(:check_owner) = 0)\n",
+        "    OR array_contains(:check_owner, check_owner)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:column_name IS NULL OR cardinality(:column_name) = 0)\n",
+        "    OR array_contains(:column_name, column_name)\n",
+        "  )\n",
+        "ORDER BY\n",
+        "  CASE\n",
+        "    WHEN status = 'FAIL' THEN 0\n",
+        "    ELSE 1\n",
+        "  END,\n",
+        "  CASE\n",
+        "    WHEN severity = 'CRITICAL' THEN 0\n",
+        "    ELSE 1\n",
+        "  END,\n",
+        "  failed_count DESC"
+      ],
+      "parameters": [
+        {
+          "displayName": "Validation Suite",
+          "keyword": "layer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dataset",
+          "keyword": "dataset_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Quality Dimension",
+          "keyword": "quality_dimension",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Status",
+          "keyword": "status",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Severity",
+          "keyword": "severity",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Check Owner",
+          "keyword": "check_owner",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Column Name",
+          "keyword": "column_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "catalog": "ftw-week-07",
+      "schema": "05-data-quality"
+    },
+    {
+      "name": "dq_canonical_dimensions",
+      "displayName": "DQ Canonical Dimensions",
+      "queryLines": [
+        "SELECT\n",
+        "  dimension_order,\n",
+        "  dimension_key,\n",
+        "  dimension_label,\n",
+        "  total_checks,\n",
+        "  passed_checks,\n",
+        "  warning_checks,\n",
+        "  failed_checks,\n",
+        "  failed_rule_evaluations,\n",
+        "  weighted_quality_score_pct,\n",
+        "  measurement_status,\n",
+        "  CASE\n",
+        "    WHEN\n",
+        "      dimension_key = 'ACCURACY'\n",
+        "      AND weighted_quality_score_pct IS NULL\n",
+        "    THEN\n",
+        "      'N/A — Accuracy validation has not run.'\n",
+        "    ELSE measurement_note\n",
+        "  END AS measurement_note,\n",
+        "  CASE\n",
+        "    WHEN weighted_quality_score_pct IS NULL THEN 'Not Measured'\n",
+        "    WHEN weighted_quality_score_pct >= 99 THEN 'Pass'\n",
+        "    WHEN weighted_quality_score_pct >= 95 THEN 'Warning'\n",
+        "    ELSE 'Fail'\n",
+        "  END AS score_category\n",
+        "FROM\n",
+        "  genie_dq_canonical_dimensions\n",
+        "ORDER BY\n",
+        "  dimension_order"
+      ],
+      "catalog": "ftw-week-07",
+      "schema": "05-data-quality"
+    },
+    {
+      "name": "dq_check_status",
+      "displayName": "DQ Check Status Breakdown",
+      "queryLines": [
+        "-- v2 params\n",
+        "SELECT\n",
+        "  status,\n",
+        "  'All Checks' AS category_group,\n",
+        "  check_count,\n",
+        "  ROUND(100.0 * check_count / NULLIF(SUM(check_count) OVER (), 0), 1) AS check_pct\n",
+        "FROM\n",
+        "  (\n",
+        "    SELECT\n",
+        "      status,\n",
+        "      COUNT(*) AS check_count\n",
+        "    FROM\n",
+        "      `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`\n",
+        "    WHERE\n",
+        "      (\n",
+        "        (:layer IS NULL OR cardinality(:layer) = 0)\n",
+        "        OR array_contains(:layer, layer)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:dataset_name IS NULL OR cardinality(:dataset_name) = 0)\n",
+        "        OR array_contains(:dataset_name, dataset_name)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:quality_dimension IS NULL OR cardinality(:quality_dimension) = 0)\n",
+        "        OR array_contains(:quality_dimension, quality_dimension)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:status IS NULL OR cardinality(:status) = 0)\n",
+        "        OR array_contains(:status, status)\n",
+        "      )\n",
+        "    GROUP BY\n",
+        "      status\n",
+        "  ) t"
+      ],
+      "parameters": [
+        {
+          "displayName": "Validation Suite",
+          "keyword": "layer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dataset",
+          "keyword": "dataset_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Quality Dimension",
+          "keyword": "quality_dimension",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Status",
+          "keyword": "status",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "catalog": "ftw-week-07",
+      "schema": "05-data-quality"
+    },
+    {
+      "name": "dq_layer_scores",
+      "displayName": "DQ Validation Suite Scores",
+      "queryLines": [
+        "-- v2 params\n",
+        "SELECT\n",
+        "  layer,\n",
+        "  total_checks,\n",
+        "  passed_checks,\n",
+        "  warning_checks,\n",
+        "  failed_checks,\n",
+        "  weighted_quality_score_pct,\n",
+        "  CASE\n",
+        "    WHEN weighted_quality_score_pct IS NULL THEN 'Not Measured'\n",
+        "    WHEN weighted_quality_score_pct >= 99 THEN 'Pass'\n",
+        "    WHEN weighted_quality_score_pct >= 95 THEN 'Warning'\n",
+        "    ELSE 'Fail'\n",
+        "  END AS score_category\n",
+        "FROM\n",
+        "  (\n",
+        "    SELECT\n",
+        "      layer,\n",
+        "      COUNT(*) AS total_checks,\n",
+        "      COUNT_IF(status = 'PASS') AS passed_checks,\n",
+        "      COUNT_IF(status = 'WARNING') AS warning_checks,\n",
+        "      COUNT_IF(status = 'FAIL') AS failed_checks,\n",
+        "      ROUND(\n",
+        "        100.0 * SUM(passed_count) / NULLIF(SUM(total_count), 0),\n",
+        "        3\n",
+        "      ) AS weighted_quality_score_pct\n",
+        "    FROM\n",
+        "      `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`\n",
+        "    WHERE\n",
+        "      (\n",
+        "        (:layer IS NULL OR cardinality(:layer) = 0)\n",
+        "        OR array_contains(:layer, layer)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:dataset_name IS NULL OR cardinality(:dataset_name) = 0)\n",
+        "        OR array_contains(:dataset_name, dataset_name)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:quality_dimension IS NULL OR cardinality(:quality_dimension) = 0)\n",
+        "        OR array_contains(:quality_dimension, quality_dimension)\n",
+        "      )\n",
+        "      AND (\n",
+        "        (:status IS NULL OR cardinality(:status) = 0)\n",
+        "        OR array_contains(:status, status)\n",
+        "      )\n",
+        "    GROUP BY\n",
+        "      layer\n",
+        "  ) t"
+      ],
+      "parameters": [
+        {
+          "displayName": "Validation Suite",
+          "keyword": "layer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dataset",
+          "keyword": "dataset_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Quality Dimension",
+          "keyword": "quality_dimension",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Status",
+          "keyword": "status",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "dq_owner_summary",
+      "displayName": "DQ Owner Summary",
+      "queryLines": [
+        "-- v2 params\n",
+        "SELECT\n",
+        "  check_owner,\n",
+        "  COUNT(*) AS checks_needing_attention,\n",
+        "  COUNT_IF(status = 'FAIL') AS failed_checks,\n",
+        "  COUNT_IF(status = 'WARNING') AS warning_checks,\n",
+        "  SUM(failed_count) AS failed_rule_evaluations\n",
+        "FROM\n",
+        "  `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`\n",
+        "WHERE\n",
+        "  status IN ('FAIL', 'WARNING')\n",
+        "  AND (\n",
+        "    (:severity IS NULL OR cardinality(:severity) = 0)\n",
+        "    OR array_contains(:severity, severity)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:check_owner IS NULL OR cardinality(:check_owner) = 0)\n",
+        "    OR array_contains(:check_owner, check_owner)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:column_name IS NULL OR cardinality(:column_name) = 0)\n",
+        "    OR array_contains(:column_name, column_name)\n",
+        "  )\n",
+        "GROUP BY\n",
+        "  check_owner\n",
+        "ORDER BY\n",
+        "  failed_checks DESC,\n",
+        "  warning_checks DESC"
+      ],
+      "parameters": [
+        {
+          "displayName": "Severity",
+          "keyword": "severity",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Check Owner",
+          "keyword": "check_owner",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Column Name",
+          "keyword": "column_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "dq_filter_source",
+      "displayName": "DQ Filter Source",
+      "queryLines": [
+        "SELECT DISTINCT\n",
+        "  layer,\n",
+        "  dataset_name,\n",
+        "  quality_dimension,\n",
+        "  status,\n",
+        "  severity,\n",
+        "  check_owner,\n",
+        "  column_name\n",
+        "FROM\n",
+        "  `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`\n",
+        "WHERE\n",
+        "  (\n",
+        "    :layer IS NULL\n",
+        "    OR array_contains(:layer, layer)\n",
+        "  )"
+      ],
+      "parameters": [
+        {
+          "displayName": "Validation Suite",
+          "keyword": "layer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {}
+        }
+      ]
+    },
+    {
+      "name": "dq_kpi_filtered",
+      "displayName": "DQ Filtered KPIs",
+      "queryLines": [
+        "SELECT\n",
+        "  layer,\n",
+        "  dataset_name,\n",
+        "  quality_dimension,\n",
+        "  status,\n",
+        "  passed_count,\n",
+        "  total_count,\n",
+        "  failed_count\n",
+        "FROM\n",
+        "  `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`\n",
+        "WHERE\n",
+        "  (\n",
+        "    (:layer IS NULL OR cardinality(:layer) = 0)\n",
+        "    OR array_contains(:layer, layer)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:dataset_name IS NULL OR cardinality(:dataset_name) = 0)\n",
+        "    OR array_contains(:dataset_name, dataset_name)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:quality_dimension IS NULL OR cardinality(:quality_dimension) = 0)\n",
+        "    OR array_contains(:quality_dimension, quality_dimension)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:status IS NULL OR cardinality(:status) = 0)\n",
+        "    OR array_contains(:status, status)\n",
+        "  )"
+      ],
+      "parameters": [
+        {
+          "displayName": "Validation Suite",
+          "keyword": "layer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dataset",
+          "keyword": "dataset_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Quality Dimension",
+          "keyword": "quality_dimension",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Status",
+          "keyword": "status",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "columns": [
+        {
+          "displayName": "failed_rule_evaluations",
+          "description": "Total failed rule evaluations",
+          "expression": "SUM(failed_count)"
+        },
+        {
+          "displayName": "checks_needing_attention",
+          "description": "Count of checks with WARNING or FAIL status",
+          "expression": "COUNT_IF(status IN ('WARNING', 'FAIL'))"
+        }
+      ]
+    },
+    {
+      "name": "dq_kpi_score",
+      "displayName": "DQ Score KPI",
+      "queryLines": [
+        "SELECT\n",
+        "  layer,\n",
+        "  dataset_name,\n",
+        "  quality_dimension,\n",
+        "  passed_count,\n",
+        "  total_count\n",
+        "FROM\n",
+        "  `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`\n",
+        "WHERE\n",
+        "  (\n",
+        "    (:layer IS NULL OR cardinality(:layer) = 0)\n",
+        "    OR array_contains(:layer, layer)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:dataset_name IS NULL OR cardinality(:dataset_name) = 0)\n",
+        "    OR array_contains(:dataset_name, dataset_name)\n",
+        "  )\n",
+        "  AND (\n",
+        "    (:quality_dimension IS NULL OR cardinality(:quality_dimension) = 0)\n",
+        "    OR array_contains(:quality_dimension, quality_dimension)\n",
+        "  )"
+      ],
+      "parameters": [
+        {
+          "displayName": "Validation Suite",
+          "keyword": "layer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dataset",
+          "keyword": "dataset_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Quality Dimension",
+          "keyword": "quality_dimension",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "columns": [
+        {
+          "displayName": "dq_score",
+          "description": "Overall DQ score: 100 * SUM(passed_count) / NULLIF(SUM(total_count), 0)",
+          "expression": "100 * SUM(passed_count) / NULLIF(SUM(total_count), 0)"
+        }
+      ]
+    },
+    {
+      "name": "dq_source_rows_filtered",
+      "displayName": "DQ Source Rows Filtered",
+      "queryLines": [
+        "WITH ranked_volume AS (\n",
+        "  SELECT\n",
+        "    *,\n",
+        "    ROW_NUMBER() OVER (\n",
+        "        PARTITION BY dataset_name\n",
+        "        ORDER BY executed_at DESC, run_id DESC\n",
+        "      ) AS volume_rank\n",
+        "  FROM\n",
+        "    `ftw-week-07`.`05-data-quality`.`genie_dq_volume_history`\n",
+        "  WHERE\n",
+        "    layer = 'BRONZE'\n",
+        ")\n",
+        "SELECT\n",
+        "  dataset_name,\n",
+        "  observed_row_count,\n",
+        "  failed_count AS difference_from_baseline,\n",
+        "  status,\n",
+        "  executed_at\n",
+        "FROM\n",
+        "  ranked_volume\n",
+        "WHERE\n",
+        "  volume_rank = 1\n",
+        "  AND (\n",
+        "    (:dataset_name IS NULL OR cardinality(:dataset_name) = 0)\n",
+        "    OR array_contains(:dataset_name, dataset_name)\n",
+        "  )"
+      ],
+      "parameters": [
+        {
+          "displayName": "Dataset",
+          "keyword": "dataset_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "9c200dca",
+      "displayName": "Problems & Volume",
+      "layout": [
+        {
+          "widget": {
+            "name": "issue_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_problem_areas",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    },
+                    {
+                      "name": "dataset_name",
+                      "expression": "`dataset_name`"
+                    },
+                    {
+                      "name": "column_name",
+                      "expression": "`column_name`"
+                    },
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    },
+                    {
+                      "name": "quality_dimension",
+                      "expression": "`quality_dimension`"
+                    },
+                    {
+                      "name": "severity",
+                      "expression": "`severity`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "failed_count",
+                      "expression": "`failed_count`"
+                    },
+                    {
+                      "name": "failure_pct",
+                      "expression": "`failure_pct`"
+                    },
+                    {
+                      "name": "check_owner",
+                      "expression": "`check_owner`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Checks Needing Attention",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "layer"
+                  },
+                  {
+                    "fieldName": "dataset_name"
+                  },
+                  {
+                    "fieldName": "column_name"
+                  },
+                  {
+                    "fieldName": "check_name"
+                  },
+                  {
+                    "fieldName": "quality_dimension"
+                  },
+                  {
+                    "fieldName": "severity"
+                  },
+                  {
+                    "fieldName": "status"
+                  },
+                  {
+                    "fieldName": "failed_count"
+                  },
+                  {
+                    "fieldName": "failure_pct"
+                  },
+                  {
+                    "fieldName": "check_owner"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "owner_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_owner_summary",
+                  "fields": [
+                    {
+                      "name": "check_owner",
+                      "expression": "`check_owner`"
+                    },
+                    {
+                      "name": "checks_needing_attention",
+                      "expression": "`checks_needing_attention`"
+                    },
+                    {
+                      "name": "failed_checks",
+                      "expression": "`failed_checks`"
+                    },
+                    {
+                      "name": "warning_checks",
+                      "expression": "`warning_checks`"
+                    },
+                    {
+                      "name": "failed_rule_evaluations",
+                      "expression": "`failed_rule_evaluations`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Checks Needing Attention by Owner",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "check_owner",
+                    "displayName": "Owner"
+                  },
+                  {
+                    "fieldName": "checks_needing_attention",
+                    "displayName": "Checks Needing Attention"
+                  },
+                  {
+                    "fieldName": "failed_checks",
+                    "displayName": "Failed Checks"
+                  },
+                  {
+                    "fieldName": "warning_checks",
+                    "displayName": "Warning Checks"
+                  },
+                  {
+                    "fieldName": "failed_rule_evaluations",
+                    "displayName": "Failed Rule Evaluations"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "volume_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_volume_history",
+                  "fields": [
+                    {
+                      "name": "dataset_name",
+                      "expression": "`dataset_name`"
+                    },
+                    {
+                      "name": "observed_row_count",
+                      "expression": "`observed_row_count`"
+                    },
+                    {
+                      "name": "difference_from_baseline",
+                      "expression": "`difference_from_baseline`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "executed_at",
+                      "expression": "`executed_at`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Source Volume by Dataset",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "dataset_name",
+                    "displayName": "Dataset"
+                  },
+                  {
+                    "fieldName": "observed_row_count",
+                    "format": {
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "places": 0,
+                        "type": "exact"
+                      },
+                      "hideGroupSeparator": false,
+                      "type": "number-plain"
+                    },
+                    "displayName": "Observed Rows"
+                  },
+                  {
+                    "fieldName": "difference_from_baseline",
+                    "format": {
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "places": 0,
+                        "type": "exact"
+                      },
+                      "hideGroupSeparator": false,
+                      "type": "number-plain"
+                    },
+                    "displayName": "Diff from Baseline"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "executed_at",
+                    "format": {
+                      "date": "locale-short-month",
+                      "time": "locale-hour-minute",
+                      "type": "date-time"
+                    },
+                    "displayName": "Executed At"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_severity",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_severity",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "severity",
+                      "expression": "`severity`"
+                    },
+                    {
+                      "name": "severity_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db68d17648d96ce31329acc65_severity",
+                "query": {
+                  "datasetName": "dq_problem_areas",
+                  "parameters": [
+                    {
+                      "name": "severity",
+                      "keyword": "severity"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Severity"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "severity",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_severity"
+                  },
+                  {
+                    "parameterName": "severity",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db68d17648d96ce31329acc65_severity"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_owner",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_check_owner",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "check_owner",
+                      "expression": "`check_owner`"
+                    },
+                    {
+                      "name": "check_owner_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db68d17648d96ce31329acc65_check_owner",
+                "query": {
+                  "datasetName": "dq_problem_areas",
+                  "parameters": [
+                    {
+                      "name": "check_owner",
+                      "keyword": "check_owner"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Check Owner"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "check_owner",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_check_owner"
+                  },
+                  {
+                    "parameterName": "check_owner",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db68d17648d96ce31329acc65_check_owner"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 0,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_column",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_column_name",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "column_name",
+                      "expression": "`column_name`"
+                    },
+                    {
+                      "name": "column_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db68d17648d96ce31329acc65_column_name",
+                "query": {
+                  "datasetName": "dq_problem_areas",
+                  "parameters": [
+                    {
+                      "name": "column_name",
+                      "keyword": "column_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Column Name"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "column_name",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_column_name"
+                  },
+                  {
+                    "parameterName": "column_name",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db68d17648d96ce31329acc65_column_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_vol_dataset",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_dataset_name",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "dataset_name",
+                      "expression": "`dataset_name`"
+                    },
+                    {
+                      "name": "dataset_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db31413dcbe110cea2c0ef0d5_vol_dataset_name",
+                "query": {
+                  "datasetName": "dq_volume_history",
+                  "parameters": [
+                    {
+                      "name": "vol_dataset_name",
+                      "keyword": "vol_dataset_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Dataset (Volume)"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "dataset_name",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_dataset_name"
+                  },
+                  {
+                    "parameterName": "vol_dataset_name",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db31413dcbe110cea2c0ef0d5_vol_dataset_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_vol_status",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_status",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "status_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db31413dcbe110cea2c0ef0d5_vol_status",
+                "query": {
+                  "datasetName": "dq_volume_history",
+                  "parameters": [
+                    {
+                      "name": "vol_status",
+                      "keyword": "vol_status"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Status (Volume)"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "status",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_status"
+                  },
+                  {
+                    "parameterName": "vol_status",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab5db31413dcbe110cea2c0ef0d5_vol_status"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 1
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "1281a6f5",
+      "displayName": "DQ Overview",
+      "layout": [
+        {
+          "widget": {
+            "name": "subtitle",
+            "multilineTextboxSpec": {
+              "lines": [
+                "Latest Bronze, Silver, Gold, and Analytics validation results with historical trends and accountable issue ownership."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "dq_score",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_kpi_score",
+                  "fields": [
+                    {
+                      "name": "measure(dq_score)",
+                      "expression": "MEASURE(`dq_score`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "DQ Score",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(dq_score)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "source_rows",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_source_rows_filtered",
+                  "fields": [
+                    {
+                      "name": "sum(observed_row_count)",
+                      "expression": "SUM(`observed_row_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Source Rows Processed",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(observed_row_count)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 1,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "failed_rule_evals",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_kpi_filtered",
+                  "fields": [
+                    {
+                      "name": "measure(failed_rule_evaluations)",
+                      "expression": "MEASURE(`failed_rule_evaluations`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Failed Rule Evaluations",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(failed_rule_evaluations)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 1,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "check_status_pie",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_check_status",
+                  "fields": [
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "sum(check_pct)",
+                      "expression": "SUM(`check_pct`)"
+                    },
+                    {
+                      "name": "sum(check_count)",
+                      "expression": "SUM(`check_count`)"
+                    },
+                    {
+                      "name": "category_group",
+                      "expression": "`category_group`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Check Status Breakdown",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "mark": {
+                "layout": "percent-stack"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(check_count)",
+                  "displayName": "Check Count",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "category_group",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "status",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "extra": [
+                  {
+                    "fieldName": "sum(check_pct)"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dataset_scores",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_dataset_scores",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    },
+                    {
+                      "name": "dataset_name",
+                      "expression": "`dataset_name`"
+                    },
+                    {
+                      "name": "total_checks",
+                      "expression": "`total_checks`"
+                    },
+                    {
+                      "name": "passed_checks",
+                      "expression": "`passed_checks`"
+                    },
+                    {
+                      "name": "warning_checks",
+                      "expression": "`warning_checks`"
+                    },
+                    {
+                      "name": "failed_checks",
+                      "expression": "`failed_checks`"
+                    },
+                    {
+                      "name": "score_category",
+                      "expression": "`score_category`"
+                    },
+                    {
+                      "name": "weighted_quality_score_pct",
+                      "expression": "`weighted_quality_score_pct`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Layer &amp; Dataset Quality Scores",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer"
+                  },
+                  {
+                    "fieldName": "dataset_name",
+                    "displayName": "Dataset"
+                  },
+                  {
+                    "fieldName": "total_checks",
+                    "displayName": "Total"
+                  },
+                  {
+                    "fieldName": "passed_checks",
+                    "displayName": "Passed"
+                  },
+                  {
+                    "fieldName": "warning_checks",
+                    "displayName": "Warning"
+                  },
+                  {
+                    "fieldName": "failed_checks",
+                    "displayName": "Failed"
+                  },
+                  {
+                    "fieldName": "score_category",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "weighted_quality_score_pct",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 1
+                      }
+                    },
+                    "displayName": "Quality Score %"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "checks_attention",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_kpi_filtered",
+                  "fields": [
+                    {
+                      "name": "measure(checks_needing_attention)",
+                      "expression": "MEASURE(`checks_needing_attention`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Checks Needing Attention",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(checks_needing_attention)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 1,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "dimension_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_canonical_dimensions",
+                  "fields": [
+                    {
+                      "name": "score_category",
+                      "expression": "`score_category`"
+                    },
+                    {
+                      "name": "measurement_status",
+                      "expression": "`measurement_status`"
+                    },
+                    {
+                      "name": "measurement_note",
+                      "expression": "`measurement_note`"
+                    },
+                    {
+                      "name": "sum(weighted_quality_score_pct)",
+                      "expression": "SUM(`weighted_quality_score_pct`)"
+                    },
+                    {
+                      "name": "dimension_label",
+                      "expression": "`dimension_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": "Overall Quality Score by Dimension",
+                "description": {
+                  "value": "Latest results across all validation suites.",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(weighted_quality_score_pct)",
+                  "displayName": "Quality Score %",
+                  "scale": {
+                    "type": "quantitative",
+                    "domain": {
+                      "min": 0,
+                      "max": 100
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "dimension_label",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "score_category",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "extra": [
+                  {
+                    "fieldName": "measurement_status"
+                  },
+                  {
+                    "fieldName": "measurement_note"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "suite_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dq_layer_scores",
+                  "fields": [
+                    {
+                      "name": "score_category",
+                      "expression": "`score_category`"
+                    },
+                    {
+                      "name": "sum(total_checks)",
+                      "expression": "SUM(`total_checks`)"
+                    },
+                    {
+                      "name": "sum(warning_checks)",
+                      "expression": "SUM(`warning_checks`)"
+                    },
+                    {
+                      "name": "sum(failed_checks)",
+                      "expression": "SUM(`failed_checks`)"
+                    },
+                    {
+                      "name": "sum(weighted_quality_score_pct)",
+                      "expression": "SUM(`weighted_quality_score_pct`)"
+                    },
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Current Quality Score by Validation Suite",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(weighted_quality_score_pct)",
+                  "displayName": "Quality Score %",
+                  "scale": {
+                    "type": "quantitative",
+                    "domain": {
+                      "min": 0,
+                      "max": 100
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "layer",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "score_category",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "extra": [
+                  {
+                    "fieldName": "sum(total_checks)"
+                  },
+                  {
+                    "fieldName": "sum(warning_checks)"
+                  },
+                  {
+                    "fieldName": "sum(failed_checks)"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 3,
+            "width": 6,
+            "height": 4
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "global_filters",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "filter_layer",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_layer",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    },
+                    {
+                      "name": "layer_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35f6181687c47df7963484d4_layer",
+                "query": {
+                  "datasetName": "dq_kpi_filtered",
+                  "parameters": [
+                    {
+                      "name": "layer",
+                      "keyword": "layer"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Validation Suite",
+                  "fields": []
+                }
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "layer",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_layer"
+                  },
+                  {
+                    "parameterName": "layer",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35f6181687c47df7963484d4_layer"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_dataset",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_dataset_name",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "dataset_name",
+                      "expression": "`dataset_name`"
+                    },
+                    {
+                      "name": "dataset_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35f6181687c47df7963484d4_dataset_name",
+                "query": {
+                  "datasetName": "dq_kpi_filtered",
+                  "parameters": [
+                    {
+                      "name": "dataset_name",
+                      "keyword": "dataset_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Dataset"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "dataset_name",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_dataset_name"
+                  },
+                  {
+                    "parameterName": "dataset_name",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35f6181687c47df7963484d4_dataset_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_dimension",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_quality_dimension",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "quality_dimension",
+                      "expression": "`quality_dimension`"
+                    },
+                    {
+                      "name": "quality_dimension_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35f6181687c47df7963484d4_quality_dimension",
+                "query": {
+                  "datasetName": "dq_kpi_filtered",
+                  "parameters": [
+                    {
+                      "name": "quality_dimension",
+                      "keyword": "quality_dimension"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Quality Dimension"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "quality_dimension",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_quality_dimension"
+                  },
+                  {
+                    "parameterName": "quality_dimension",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35f6181687c47df7963484d4_quality_dimension"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_status",
+            "queries": [
+              {
+                "name": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_status",
+                "query": {
+                  "datasetName": "dq_filter_source",
+                  "fields": [
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "status_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35f6181687c47df7963484d4_status",
+                "query": {
+                  "datasetName": "dq_kpi_filtered",
+                  "parameters": [
+                    {
+                      "name": "status",
+                      "keyword": "status"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Status"
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "status",
+                    "queryName": "dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35ae13fd8122c458d332504e_status"
+                  },
+                  {
+                    "parameterName": "status",
+                    "queryName": "parameter_dashboards/01f1ab50ed2511909fc522cdb803b41e/datasets/01f1ab6b35f6181687c47df7963484d4_status"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 1
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}
