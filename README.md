@@ -78,13 +78,13 @@ For a multi-task Databricks job, use the dependency order documented in `FINDING
 
 ## Gold model
 
-The model is a fact constellation with three declared grains:
+The model is a fact constellation with three facts and six physical dimensions. The five date-role objects are views of one physical date dimension, not five additional dimension tables.
 
 - `fact_student_enrollment`: one learner in one module presentation.
 - `fact_assessment_submission`: one learner submission for one assessment.
 - `fact_vle_interaction`: one learner, VLE site, relative day, and module presentation.
 
-Shared dimensions are Student, Demographics, Module Presentation, and Relative Date. Student stores stable identity, while Demographics is a conformed profile mini-dimension linked directly to every fact. Assessment and VLE Activity are process-specific dimensions. Five role-playing date views provide unambiguous BI relationships without duplicating the physical date table. See `docs/data_model.md`.
+Shared dimensions are Student, Demographics, Module Presentation, and Relative Date. Student stores stable identity, while Demographics is a conformed profile mini-dimension linked directly to every fact. Assessment and VLE Activity are process-specific dimensions. Five role-playing date views provide unambiguous BI relationships without duplicating the physical date table. Canonical names are `fact_student_enrollment`, `fact_assessment_submission`, `fact_vle_interaction`, `dim_student`, `dim_demographics`, `dim_module_presentation`, `dim_assessment`, `dim_vle_activity`, and `dim_relative_date`. See `docs/data_model.md`.
 
 After Gold validation passes, `src/03_gold/sql/08_gold_relationships.sql` registers informational primary and foreign keys. In Catalog Explorer, open any Gold fact table and select **View relationships** to display the constellation.
 

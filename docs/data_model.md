@@ -6,31 +6,51 @@ The Gold layer is a **fact constellation** containing three stars. The stars sha
 
 `dim_student` holds stable learner identity. `dim_demographics` holds reusable demographic profiles. Each fact stores both keys directly.
 
+There are exactly six physical dimensions and three physical facts. `dim_registration_date`, `dim_unregistration_date`, `dim_submission_date`, `dim_due_date`, and `dim_activity_date` are BI role-playing views of the same physical `dim_relative_date`; they do not increase the physical dimension count.
+
+## Canonical naming
+
+Use these names consistently in SQL, Catalog Explorer, documentation, and diagrams:
+
+| Physical object | Primary key | Declared grain |
+|---|---|---|
+| `dim_student` | `student_key` | One anonymized learner identity |
+| `dim_demographics` | `demographics_key` | One distinct demographic profile |
+| `dim_module_presentation` | `module_presentation_key` | One module offered in one presentation |
+| `dim_assessment` | `assessment_key` | One assessment |
+| `dim_vle_activity` | `vle_activity_key` | One VLE site in one module presentation |
+| `dim_relative_date` | `relative_date_key` | One relative course day |
+| `fact_student_enrollment` | `student_enrollment_key` | One learner enrolled in one module presentation |
+| `fact_assessment_submission` | `assessment_submission_key` | One learner submission for one assessment |
+| `fact_vle_interaction` | `vle_interaction_key` | One learner-site-day interaction in one module presentation |
+
+Keep the original source identifiers as attributes: `id_student`, `id_assessment`, and `id_site`. Use the `_key` columns for fact-to-dimension relationships.
+
 ## Relationship diagram
 
 ```mermaid
 erDiagram
     DIM_STUDENT ||--o{ FACT_STUDENT_ENROLLMENT : student_key
-    DIM_DEMOGRAPHICS ||--o{ FACT_STUDENT_ENROLLMENT : demographics_key
-    DIM_MODULE_PRESENTATION ||--o{ FACT_STUDENT_ENROLLMENT : module_presentation_key
-    DIM_REGISTRATION_DATE ||--o{ FACT_STUDENT_ENROLLMENT : registration_date_key
-    DIM_UNREGISTRATION_DATE ||--o{ FACT_STUDENT_ENROLLMENT : unregistration_date_key
-
     DIM_STUDENT ||--o{ FACT_ASSESSMENT_SUBMISSION : student_key
-    DIM_DEMOGRAPHICS ||--o{ FACT_ASSESSMENT_SUBMISSION : demographics_key
-    DIM_MODULE_PRESENTATION ||--o{ FACT_ASSESSMENT_SUBMISSION : module_presentation_key
-    DIM_ASSESSMENT ||--o{ FACT_ASSESSMENT_SUBMISSION : assessment_key
-    DIM_SUBMISSION_DATE ||--o{ FACT_ASSESSMENT_SUBMISSION : submitted_date_key
-    DIM_DUE_DATE ||--o{ FACT_ASSESSMENT_SUBMISSION : due_date_key
-
     DIM_STUDENT ||--o{ FACT_VLE_INTERACTION : student_key
+
+    DIM_DEMOGRAPHICS ||--o{ FACT_STUDENT_ENROLLMENT : demographics_key
+    DIM_DEMOGRAPHICS ||--o{ FACT_ASSESSMENT_SUBMISSION : demographics_key
     DIM_DEMOGRAPHICS ||--o{ FACT_VLE_INTERACTION : demographics_key
+
+    DIM_MODULE_PRESENTATION ||--o{ FACT_STUDENT_ENROLLMENT : module_presentation_key
+    DIM_MODULE_PRESENTATION ||--o{ FACT_ASSESSMENT_SUBMISSION : module_presentation_key
     DIM_MODULE_PRESENTATION ||--o{ FACT_VLE_INTERACTION : module_presentation_key
+
+    DIM_RELATIVE_DATE ||--o{ FACT_STUDENT_ENROLLMENT : registration_and_unregistration_dates
+    DIM_RELATIVE_DATE ||--o{ FACT_ASSESSMENT_SUBMISSION : submission_and_due_dates
+    DIM_RELATIVE_DATE ||--o{ FACT_VLE_INTERACTION : activity_date
+
+    DIM_ASSESSMENT ||--o{ FACT_ASSESSMENT_SUBMISSION : assessment_key
     DIM_VLE_ACTIVITY ||--o{ FACT_VLE_INTERACTION : vle_activity_key
-    DIM_ACTIVITY_DATE ||--o{ FACT_VLE_INTERACTION : activity_date_key
 ```
 
-The five named date dimensions are role-playing views of one physical conformed table, `dim_relative_date`. OULAD dates are offsets from presentation start; the model does not invent calendar dates.
+The diagram shows only the physical `dim_relative_date`. The five named date roles are BI views of that table. OULAD dates are offsets from presentation start; the model does not invent calendar dates.
 
 ## Conformed dimensions
 

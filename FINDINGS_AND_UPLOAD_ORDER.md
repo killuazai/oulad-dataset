@@ -20,6 +20,7 @@ The repository was not fully reproducible because the dashboards read `genie_*` 
 8. Updated the final star-schema documentation and the repository README.
 9. Kept `dim_student` and `dim_demographics` separate; clarified that the demographic surrogate key does not by itself implement SCD Type 2.
 10. Added informational Gold primary/foreign keys so Catalog Explorer can display **View relationships** for each fact table.
+11. Standardized the diagram and SQL names around each table's declared grain and clarified that the five date-role views represent one physical dimension.
 
 ## Upload instructions
 
