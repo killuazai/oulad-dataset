@@ -84,7 +84,7 @@ The model is a fact constellation with three declared grains:
 - `fact_assessment_submission`: one learner submission for one assessment.
 - `fact_vle_interaction`: one learner, VLE site, relative day, and module presentation.
 
-Shared dimensions are Student, Module Presentation, and Relative Date. Demographic attributes are stored in `dim_student`, removing a redundant BI join. Assessment and VLE Activity are process-specific dimensions. Five role-playing date views provide unambiguous BI relationships without duplicating the physical date table. See `docs/data_model.md`.
+Shared dimensions are Student, Demographics, Module Presentation, and Relative Date. Student stores stable identity, while Demographics is a conformed profile mini-dimension linked directly to every fact. Assessment and VLE Activity are process-specific dimensions. Five role-playing date views provide unambiguous BI relationships without duplicating the physical date table. See `docs/data_model.md`.
 
 After Gold validation passes, `src/03_gold/sql/08_gold_relationships.sql` registers informational primary and foreign keys. In Catalog Explorer, open any Gold fact table and select **View relationships** to display the constellation.
 

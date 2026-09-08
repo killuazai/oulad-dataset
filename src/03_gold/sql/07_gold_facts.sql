@@ -11,17 +11,17 @@ SELECT
     CONCAT_WS('||', student.code_module, student.code_presentation, CAST(student.id_student AS STRING)),
     256
   ) AS student_enrollment_key,
+  SHA2(CAST(student.id_student AS STRING), 256) AS student_key,
+  SHA2(CONCAT_WS('||', student.code_module, student.code_presentation), 256)
+    AS module_presentation_key,
   SHA2(
     CONCAT_WS(
-      '||', CAST(student.id_student AS STRING),
-      COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
+      '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
       COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
     ),
     256
-  ) AS student_key,
-  SHA2(CONCAT_WS('||', student.code_module, student.code_presentation), 256)
-    AS module_presentation_key,
+  ) AS demographics_key,
   CASE WHEN registration.date_registration IS NULL THEN NULL
     ELSE SHA2(CAST(registration.date_registration AS STRING), 256) END AS registration_date_key,
   CASE WHEN registration.date_unregistration IS NULL THEN NULL
@@ -54,17 +54,17 @@ SELECT
     256
   ) AS assessment_submission_key,
   SHA2(CAST(submission.id_assessment AS STRING), 256) AS assessment_key,
+  SHA2(CAST(submission.id_student AS STRING), 256) AS student_key,
+  SHA2(CONCAT_WS('||', assessment.code_module, assessment.code_presentation), 256)
+    AS module_presentation_key,
   SHA2(
     CONCAT_WS(
-      '||', CAST(submission.id_student AS STRING),
-      COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
+      '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
       COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
     ),
     256
-  ) AS student_key,
-  SHA2(CONCAT_WS('||', assessment.code_module, assessment.code_presentation), 256)
-    AS module_presentation_key,
+  ) AS demographics_key,
   SHA2(CAST(submission.date_submitted AS STRING), 256) AS submitted_date_key,
   CASE WHEN assessment.assessment_date IS NULL THEN NULL
     ELSE SHA2(CAST(assessment.assessment_date AS STRING), 256) END AS due_date_key,
@@ -107,17 +107,17 @@ SELECT
     ),
     256
   ) AS vle_activity_key,
+  SHA2(CAST(interaction.id_student AS STRING), 256) AS student_key,
+  SHA2(CONCAT_WS('||', interaction.code_module, interaction.code_presentation), 256)
+    AS module_presentation_key,
   SHA2(
     CONCAT_WS(
-      '||', CAST(interaction.id_student AS STRING),
-      COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
+      '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
       COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
     ),
     256
-  ) AS student_key,
-  SHA2(CONCAT_WS('||', interaction.code_module, interaction.code_presentation), 256)
-    AS module_presentation_key,
+  ) AS demographics_key,
   SHA2(CAST(interaction.activity_date AS STRING), 256) AS activity_date_key,
   interaction.code_module,
   interaction.code_presentation,

@@ -28,9 +28,11 @@ Bronze preserves repeated learner-site-day records. Silver sums their clicks to 
 
 SHA-256 keys are reproducible for coursework. Every relevant key is placed directly on each fact, avoiding snowball joins. A production-scale implementation may adopt compact numeric keys if changed consistently everywhere.
 
-## Combined student and demographic dimension
+## Separate student identity and demographic profile
 
-`dim_student` contains learner identity and demographic attributes, so BI uses one direct student-dimension join. The source is not perfectly static: 72 learners have two recorded demographic profiles. Therefore `student_key` identifies the combination of `id_student` and demographic values, producing one row per learner-profile version rather than incorrectly forcing one row per learner. Facts receive the version recorded for their module presentation.
+`dim_student` contains one row per stable learner identity. `dim_demographics` is a conformed profile mini-dimension containing gender, region, education, IMD band, age band, and disability. The supplied source has 72 learners with two profiles, so placing those attributes in a one-row-per-student dimension would create conflicting values. Every fact stores both keys directly, which preserves the applicable enrollment profile without creating a snowflake join.
+
+`demographics_key` is a surrogate key, but that alone does not make the table SCD Type 2. A true SCD Type 2 student dimension would also require the student business key, version-effective boundaries, and a current-row indicator. OULAD does not provide reliable change-effective timestamps for that implementation, so the project does not label this mini-dimension SCD Type 2.
 
 ## Accurate aggregate measures
 

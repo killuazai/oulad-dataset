@@ -7,6 +7,8 @@
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_student_enrollment
   DROP CONSTRAINT IF EXISTS fk_enrollment_student;
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_student_enrollment
+  DROP CONSTRAINT IF EXISTS fk_enrollment_demographics;
+ALTER TABLE `ftw-week-07`.`03-mart`.fact_student_enrollment
   DROP CONSTRAINT IF EXISTS fk_enrollment_module_presentation;
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_student_enrollment
   DROP CONSTRAINT IF EXISTS fk_enrollment_registration_date;
@@ -15,6 +17,8 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_student_enrollment
 
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_assessment_submission
   DROP CONSTRAINT IF EXISTS fk_submission_student;
+ALTER TABLE `ftw-week-07`.`03-mart`.fact_assessment_submission
+  DROP CONSTRAINT IF EXISTS fk_submission_demographics;
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_assessment_submission
   DROP CONSTRAINT IF EXISTS fk_submission_module_presentation;
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_assessment_submission
@@ -26,6 +30,8 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_assessment_submission
 
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
   DROP CONSTRAINT IF EXISTS fk_vle_student;
+ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
+  DROP CONSTRAINT IF EXISTS fk_vle_demographics;
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
   DROP CONSTRAINT IF EXISTS fk_vle_module_presentation;
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
@@ -42,6 +48,8 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
   DROP CONSTRAINT IF EXISTS pk_fact_vle_interaction;
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_student
   DROP CONSTRAINT IF EXISTS pk_dim_student;
+ALTER TABLE `ftw-week-07`.`03-mart`.dim_demographics
+  DROP CONSTRAINT IF EXISTS pk_dim_demographics;
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_module_presentation
   DROP CONSTRAINT IF EXISTS pk_dim_module_presentation;
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_assessment
@@ -54,6 +62,8 @@ ALTER TABLE `ftw-week-07`.`03-mart`.dim_relative_date
 -- Databricks requires primary-key columns to be NOT NULL.
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_student
   ALTER COLUMN student_key SET NOT NULL;
+ALTER TABLE `ftw-week-07`.`03-mart`.dim_demographics
+  ALTER COLUMN demographics_key SET NOT NULL;
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_module_presentation
   ALTER COLUMN module_presentation_key SET NOT NULL;
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_assessment
@@ -72,6 +82,8 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
 -- Dimension and fact primary keys.
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_student
   ADD CONSTRAINT pk_dim_student PRIMARY KEY (student_key);
+ALTER TABLE `ftw-week-07`.`03-mart`.dim_demographics
+  ADD CONSTRAINT pk_dim_demographics PRIMARY KEY (demographics_key);
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_module_presentation
   ADD CONSTRAINT pk_dim_module_presentation PRIMARY KEY (module_presentation_key);
 ALTER TABLE `ftw-week-07`.`03-mart`.dim_assessment
@@ -93,6 +105,10 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_student_enrollment
   FOREIGN KEY (student_key)
   REFERENCES `ftw-week-07`.`03-mart`.dim_student (student_key);
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_student_enrollment
+  ADD CONSTRAINT fk_enrollment_demographics
+  FOREIGN KEY (demographics_key)
+  REFERENCES `ftw-week-07`.`03-mart`.dim_demographics (demographics_key);
+ALTER TABLE `ftw-week-07`.`03-mart`.fact_student_enrollment
   ADD CONSTRAINT fk_enrollment_module_presentation
   FOREIGN KEY (module_presentation_key)
   REFERENCES `ftw-week-07`.`03-mart`.dim_module_presentation (module_presentation_key);
@@ -110,6 +126,10 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_assessment_submission
   ADD CONSTRAINT fk_submission_student
   FOREIGN KEY (student_key)
   REFERENCES `ftw-week-07`.`03-mart`.dim_student (student_key);
+ALTER TABLE `ftw-week-07`.`03-mart`.fact_assessment_submission
+  ADD CONSTRAINT fk_submission_demographics
+  FOREIGN KEY (demographics_key)
+  REFERENCES `ftw-week-07`.`03-mart`.dim_demographics (demographics_key);
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_assessment_submission
   ADD CONSTRAINT fk_submission_module_presentation
   FOREIGN KEY (module_presentation_key)
@@ -133,6 +153,10 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
   FOREIGN KEY (student_key)
   REFERENCES `ftw-week-07`.`03-mart`.dim_student (student_key);
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
+  ADD CONSTRAINT fk_vle_demographics
+  FOREIGN KEY (demographics_key)
+  REFERENCES `ftw-week-07`.`03-mart`.dim_demographics (demographics_key);
+ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
   ADD CONSTRAINT fk_vle_module_presentation
   FOREIGN KEY (module_presentation_key)
   REFERENCES `ftw-week-07`.`03-mart`.dim_module_presentation (module_presentation_key);
@@ -145,7 +169,7 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interaction
   FOREIGN KEY (activity_date_key)
   REFERENCES `ftw-week-07`.`03-mart`.dim_relative_date (relative_date_key);
 
--- Verification result: expect 21 constraints (8 PK + 13 FK).
+-- Verification result: expect 25 constraints (9 PK + 16 FK).
 SELECT
   table_name,
   constraint_name,

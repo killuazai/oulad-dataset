@@ -4,7 +4,7 @@ Reviewed GitHub revision: `ff8990fa08624824793d1ee3b50e97303a2f1a15`.
 
 ## Final assessment
 
-The Bronze, Silver, Gold, and Analytics data flow is structurally sound. The Gold model is a valid fact constellation with three facts sharing conformed dimensions and direct fact-to-dimension relationships. Student identity and demographic attributes are consolidated into one BI dimension without assuming that each learner has only one recorded profile. The 173 missing assessment scores are a legitimate source condition and must remain a non-blocking `WARNING`.
+The Bronze, Silver, Gold, and Analytics data flow is structurally sound. The Gold model is a valid fact constellation with three facts sharing conformed dimensions and direct fact-to-dimension relationships. Student identity remains separate from the conformed demographic profile mini-dimension because some learners have more than one source profile. The 173 missing assessment scores are a legitimate source condition and must remain a non-blocking `WARNING`.
 
 The repository was not fully reproducible because the dashboards read `genie_*` views that were not called by the full pipeline. The original latest-results view also selected one global validator run even though each validation suite creates its own run ID. Accuracy was listed but not measured, several documentation claims did not match the SQL, and some business-dashboard rates used incorrect aggregation denominators.
 
@@ -18,7 +18,7 @@ The repository was not fully reproducible because the dashboards read `genie_*` 
 6. Replaced the dashboard SQL reference queries with versions matching the current dashboard design.
 7. Added exact dashboard revision prompts for changes that must be applied in the Databricks dashboard editor and re-exported.
 8. Updated the final star-schema documentation and the repository README.
-9. Merged `dim_demographics` into `dim_student`; updated facts, Gold validation, Genie sources, and documentation consistently.
+9. Kept `dim_student` and `dim_demographics` separate; clarified that the demographic surrogate key does not by itself implement SCD Type 2.
 10. Added informational Gold primary/foreign keys so Catalog Explorer can display **View relationships** for each fact table.
 
 ## Upload instructions

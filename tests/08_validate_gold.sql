@@ -19,13 +19,22 @@ WITH checks AS (
   UNION ALL
 
   SELECT
-    'dim_student', 'student_key', 'student profile key is complete and unique',
-    'UNIQUENESS', 'NULL_UNIQUE',
-    'One non-null key per distinct learner and demographic profile',
+    'dim_student', 'student_key', 'student key is complete and unique',
+    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per student',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(student_key IS NULL OR id_student IS NULL)
       + COUNT(*) - COUNT(DISTINCT student_key)
   FROM IDENTIFIER(mart_namespace || '.dim_student')
+
+  UNION ALL
+
+  SELECT
+    'dim_demographics', 'demographics_key', 'demographic profile key is complete and unique',
+    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per distinct demographic profile',
+    0, 'CRITICAL', 'data_engineering', COUNT(*),
+    COUNT_IF(demographics_key IS NULL)
+      + COUNT(*) - COUNT(DISTINCT demographics_key)
+  FROM IDENTIFIER(mart_namespace || '.dim_demographics')
 
   UNION ALL
 
@@ -60,16 +69,19 @@ WITH checks AS (
     'fact_student_enrollment', 'student_enrollment_key',
     'enrollment grain and direct dimension keys are valid',
     'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
-    'One enrollment row with valid student profile, module presentation, and optional relative dates',
+    'One enrollment row with valid student, demographic profile, module presentation, and optional dates',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(
-      student.student_key IS NULL OR module.module_presentation_key IS NULL
+      student.student_key IS NULL OR demographic.demographics_key IS NULL
+      OR module.module_presentation_key IS NULL
       OR (fact.registration_date_key IS NOT NULL AND registration_date.relative_date_key IS NULL)
       OR (fact.unregistration_date_key IS NOT NULL AND unregistration_date.relative_date_key IS NULL)
     ) + COUNT(*) - COUNT(DISTINCT fact.student_enrollment_key)
   FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment') AS fact
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
     ON fact.student_key = student.student_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
+    ON fact.demographics_key = demographic.demographics_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
     ON fact.module_presentation_key = module.module_presentation_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS registration_date
@@ -83,10 +95,11 @@ WITH checks AS (
     'fact_assessment_submission', 'assessment_submission_key',
     'assessment fact grain and direct dimension keys are valid',
     'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
-    'One submission row with valid assessment, student profile, module, and relative dates',
+    'One submission row with valid assessment, student, demographics, module, and relative dates',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(
       assessment.assessment_key IS NULL OR student.student_key IS NULL
+      OR demographic.demographics_key IS NULL
       OR module.module_presentation_key IS NULL OR submitted_date.relative_date_key IS NULL
       OR (fact.due_date_key IS NOT NULL AND due_date.relative_date_key IS NULL)
       OR fact.score < 0 OR fact.score > 100
@@ -96,6 +109,8 @@ WITH checks AS (
     ON fact.assessment_key = assessment.assessment_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
     ON fact.student_key = student.student_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
+    ON fact.demographics_key = demographic.demographics_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
     ON fact.module_presentation_key = module.module_presentation_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS submitted_date
@@ -109,10 +124,11 @@ WITH checks AS (
     'fact_vle_interaction', 'vle_interaction_key',
     'VLE fact grain and direct dimension keys are valid',
     'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
-    'One student-site-day row with valid activity, student profile, module, and relative date',
+    'One student-site-day row with valid activity, student, demographics, module, and relative date',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(
       activity.vle_activity_key IS NULL OR student.student_key IS NULL
+      OR demographic.demographics_key IS NULL
       OR module.module_presentation_key IS NULL
       OR activity_date.relative_date_key IS NULL OR fact.sum_click <= 0
     ) + COUNT(*) - COUNT(DISTINCT fact.vle_interaction_key)
@@ -121,6 +137,8 @@ WITH checks AS (
     ON fact.vle_activity_key = activity.vle_activity_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
     ON fact.student_key = student.student_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
+    ON fact.demographics_key = demographic.demographics_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
     ON fact.module_presentation_key = module.module_presentation_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS activity_date

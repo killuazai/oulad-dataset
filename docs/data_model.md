@@ -2,26 +2,29 @@
 
 ## Model classification
 
-The Gold layer is a **fact constellation** containing three stars. The stars share conformed Student, Module Presentation, and Relative Date dimensions. Assessment and VLE Activity are process-specific dimensions. Every BI relationship is directly between a dimension and a fact, so the model has no snowball joins, dimension-to-dimension joins, or fact-to-fact joins.
+The Gold layer is a **fact constellation** containing three stars. The stars share conformed Student, Demographics, Module Presentation, and Relative Date dimensions. Assessment and VLE Activity are process-specific dimensions. Every BI relationship is directly between a dimension and a fact, so the model has no snowball joins, dimension-to-dimension joins, or fact-to-fact joins.
 
-Student identity and demographic attributes are consolidated into `dim_student`. This gives BI one student-dimension join while preserving the profiles recorded in OULAD.
+`dim_student` holds stable learner identity. `dim_demographics` holds reusable demographic profiles. Each fact stores both keys directly.
 
 ## Relationship diagram
 
 ```mermaid
 erDiagram
     DIM_STUDENT ||--o{ FACT_STUDENT_ENROLLMENT : student_key
+    DIM_DEMOGRAPHICS ||--o{ FACT_STUDENT_ENROLLMENT : demographics_key
     DIM_MODULE_PRESENTATION ||--o{ FACT_STUDENT_ENROLLMENT : module_presentation_key
     DIM_REGISTRATION_DATE ||--o{ FACT_STUDENT_ENROLLMENT : registration_date_key
     DIM_UNREGISTRATION_DATE ||--o{ FACT_STUDENT_ENROLLMENT : unregistration_date_key
 
     DIM_STUDENT ||--o{ FACT_ASSESSMENT_SUBMISSION : student_key
+    DIM_DEMOGRAPHICS ||--o{ FACT_ASSESSMENT_SUBMISSION : demographics_key
     DIM_MODULE_PRESENTATION ||--o{ FACT_ASSESSMENT_SUBMISSION : module_presentation_key
     DIM_ASSESSMENT ||--o{ FACT_ASSESSMENT_SUBMISSION : assessment_key
     DIM_SUBMISSION_DATE ||--o{ FACT_ASSESSMENT_SUBMISSION : submitted_date_key
     DIM_DUE_DATE ||--o{ FACT_ASSESSMENT_SUBMISSION : due_date_key
 
     DIM_STUDENT ||--o{ FACT_VLE_INTERACTION : student_key
+    DIM_DEMOGRAPHICS ||--o{ FACT_VLE_INTERACTION : demographics_key
     DIM_MODULE_PRESENTATION ||--o{ FACT_VLE_INTERACTION : module_presentation_key
     DIM_VLE_ACTIVITY ||--o{ FACT_VLE_INTERACTION : vle_activity_key
     DIM_ACTIVITY_DATE ||--o{ FACT_VLE_INTERACTION : activity_date_key
@@ -33,17 +36,20 @@ The five named date dimensions are role-playing views of one physical conformed 
 
 | Dimension | Key | Exact grain | Main attributes | Used by |
 |---|---|---|---|---|
-| `dim_student` | `student_key` | One distinct learner and recorded demographic profile | `id_student`, gender, region, education, IMD band, age band, disability | All facts |
+| `dim_student` | `student_key` | One anonymized learner identity | `id_student` | All facts |
+| `dim_demographics` | `demographics_key` | One distinct demographic profile | Gender, region, education, IMD band, age band, disability | All facts |
 | `dim_module_presentation` | `module_presentation_key` | One module presentation | Module, presentation, year, term, length | All facts |
 | `dim_relative_date` | `relative_date_key` | One relative course day | Relative day, week, course phase | All facts through role views |
 | `dim_assessment` | `assessment_key` | One assessment | Assessment ID, type, weight, due-day offset | Assessment fact |
 | `dim_vle_activity` | `vle_activity_key` | One VLE site in one module presentation | Site ID, activity type, active weeks | VLE fact |
 
-### Why `dim_student` has a profile grain
+### Why Student and Demographics remain separate
 
-The supplied `studentInfo.csv` contains 28,785 distinct learner IDs but 28,857 distinct learner-profile combinations. Seventy-two learners have two recorded demographic profiles. A key based only on `id_student` would therefore map one key to conflicting attributes.
+The supplied `studentInfo.csv` contains 28,785 distinct learner IDs but 28,857 distinct learner-profile combinations. Seventy-two learners have two recorded demographic profiles. Merging the attributes into a table with one row per `id_student` would therefore map one student to conflicting values.
 
-`student_key` is generated from `id_student` plus gender, region, highest education, IMD band, age band, and disability. Each fact receives the profile recorded for that learner's module presentation. This implements the requested single student dimension without losing source information or causing a many-to-many BI relationship.
+`student_key` is generated only from `id_student`. `demographics_key` is generated from the six profile attributes. Each fact receives both keys from the learner's module-presentation record. The dimensions do not join to each other, so the design remains a star constellation and avoids snowball joins.
+
+`demographics_key` is a surrogate key, but `dim_demographics` is not SCD Type 2. A true SCD Type 2 dimension needs a business key such as `id_student`, version-effective start and end values, and normally an `is_current` indicator. This table is a conformed demographic profile mini-dimension; the fact association supplies the applicable profile context.
 
 ## Fact grains and relationships
 
@@ -56,6 +62,7 @@ Primary key: `student_enrollment_key`.
 Foreign keys:
 
 - `student_key` → `dim_student`
+- `demographics_key` → `dim_demographics`
 - `module_presentation_key` → `dim_module_presentation`
 - `registration_date_key` → `dim_registration_date`
 - `unregistration_date_key` → `dim_unregistration_date`
@@ -71,6 +78,7 @@ Primary key: `assessment_submission_key`.
 Foreign keys:
 
 - `student_key` → `dim_student`
+- `demographics_key` → `dim_demographics`
 - `module_presentation_key` → `dim_module_presentation`
 - `assessment_key` → `dim_assessment`
 - `submitted_date_key` → `dim_submission_date`
@@ -87,6 +95,7 @@ Primary key: `vle_interaction_key`.
 Foreign keys:
 
 - `student_key` → `dim_student`
+- `demographics_key` → `dim_demographics`
 - `module_presentation_key` → `dim_module_presentation`
 - `vle_activity_key` → `dim_vle_activity`
 - `activity_date_key` → `dim_activity_date`
@@ -126,9 +135,9 @@ Do not average already-aggregated rates, sum distinct-student counts across grou
 | Object | Expected rows or members |
 |---|---:|
 | `dim_module_presentation` | 22 |
-| `dim_student` | 28,857 learner-profile versions |
-| Distinct `id_student` values in `dim_student` | 28,785 |
-| Learners with two recorded profiles | 72 |
+| `dim_student` | 28,785 |
+| `dim_demographics` | 1,913 |
+| Learners with two recorded demographic profiles | 72 |
 | `dim_assessment` | 206 |
 | `dim_vle_activity` | 6,364 |
 | `fact_student_enrollment` | 32,593 |
@@ -147,7 +156,7 @@ The Gold VLE fact may contain fewer rows than Bronze because Silver consolidates
 - Use the correct date-role view for each fact key.
 - Hide hash keys and duplicated audit identifiers from dashboard users.
 - Use dimensions for grouping and filtering, and additive fact controls for calculations.
-- Count distinct learners with `id_student` when analysis spans multiple profile versions.
+- Use `dim_student` for learner counts and `dim_demographics` for demographic grouping.
 
 The relationships are registered as informational Unity Catalog primary and foreign keys by `src/03_gold/sql/08_gold_relationships.sql`. They are not enforced by Databricks; the Gold validation suite proves the grains and referential integrity before registering them.
 

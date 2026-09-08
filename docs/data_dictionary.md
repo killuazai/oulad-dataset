@@ -22,7 +22,8 @@
 
 | Object | Key | Grain |
 |---|---|---|
-| `dim_student` | `student_key` | One distinct learner and demographic profile |
+| `dim_student` | `student_key` | One anonymized learner identity |
+| `dim_demographics` | `demographics_key` | One distinct demographic profile |
 | `dim_module_presentation` | `module_presentation_key` | One module presentation |
 | `dim_assessment` | `assessment_key` | One assessment |
 | `dim_vle_activity` | `vle_activity_key` | One VLE site in one module presentation |
@@ -30,7 +31,7 @@
 
 `dim_registration_date`, `dim_unregistration_date`, `dim_submission_date`, `dim_due_date`, and `dim_activity_date` are role-playing views of `dim_relative_date`.
 
-`dim_student` includes `id_student`, `gender`, `region`, `highest_education`, `imd_band`, `age_band`, and `disability`. The key includes both the learner identifier and those profile values because 72 learners have two profiles in the supplied snapshot.
+`dim_student` contains only `id_student`. `dim_demographics` contains gender, region, highest education, IMD band, age band, and disability. The facts store both keys directly.
 
 ## Gold facts
 
