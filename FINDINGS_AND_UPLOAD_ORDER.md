@@ -19,6 +19,7 @@ The repository was not fully reproducible because the dashboards read `genie_*` 
 7. Added exact dashboard revision prompts for changes that must be applied in the Databricks dashboard editor and re-exported.
 8. Updated the final star-schema documentation and the repository README.
 9. Merged `dim_demographics` into `dim_student`; updated facts, Gold validation, Genie sources, and documentation consistently.
+10. Added informational Gold primary/foreign keys so Catalog Explorer can display **View relationships** for each fact table.
 
 ## Upload instructions
 

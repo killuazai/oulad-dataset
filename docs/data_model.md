@@ -149,6 +149,8 @@ The Gold VLE fact may contain fewer rows than Bronze because Silver consolidates
 - Use dimensions for grouping and filtering, and additive fact controls for calculations.
 - Count distinct learners with `id_student` when analysis spans multiple profile versions.
 
+The relationships are registered as informational Unity Catalog primary and foreign keys by `src/03_gold/sql/08_gold_relationships.sql`. They are not enforced by Databricks; the Gold validation suite proves the grains and referential integrity before registering them.
+
 ## Accuracy boundary
 
 The model tests transformation Accuracy by reconciling counts and totals between Silver, Gold, and Analytics. It cannot prove real-world Accuracy without an independent authoritative reference.

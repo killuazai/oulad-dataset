@@ -179,3 +179,7 @@ SELECT
 FROM IDENTIFIER(dq_namespace || '.dq_check_results')
 WHERE run_id = dq_run_id AND layer = 'GOLD'
 ORDER BY dataset_name, check_name;
+
+-- COMMAND ----------
+-- Register informational relationships only after the critical Gold gate passes.
+-- MAGIC %run ../src/03_gold/sql/08_gold_relationships

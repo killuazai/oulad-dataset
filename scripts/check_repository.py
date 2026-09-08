@@ -18,6 +18,7 @@ REQUIRED_FILES = (
     "src/02_silver/sql/04_silver_tables.sql",
     "src/03_gold/sql/06_gold_dimensions.sql",
     "src/03_gold/sql/07_gold_facts.sql",
+    "src/03_gold/sql/08_gold_relationships.sql",
     "src/04_analytics/sql/09_learner_outcomes.sql",
     "src/04_analytics/sql/10_student_engagement.sql",
     "src/04_analytics/sql/11_assessment_performance.sql",
@@ -118,6 +119,12 @@ def main() -> int:
         ):
             if required_column not in text:
                 errors.append(f"assessment controls missing: {required_column}")
+
+    gold_validation = ROOT / "tests/08_validate_gold.sql"
+    if gold_validation.is_file():
+        relationship_run = "%run ../src/03_gold/sql/08_gold_relationships"
+        if relationship_run not in gold_validation.read_text(encoding="utf-8"):
+            errors.append("Gold validation does not register Catalog relationships")
 
     for dashboard in sorted((ROOT / "dashboards").glob("*.lvdash.json")):
         try:
