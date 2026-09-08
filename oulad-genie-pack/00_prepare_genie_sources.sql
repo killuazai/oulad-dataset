@@ -131,16 +131,85 @@ SELECT
     COUNT_IF(status = 'PASS') AS passed_checks,
     COUNT_IF(status = 'WARNING') AS warning_checks,
     COUNT_IF(status = 'FAIL') AS failed_checks,
+    COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') AS critical_failures,
     COUNT_IF(status IN ('WARNING', 'FAIL')) AS checks_needing_attention,
     COUNT(DISTINCT layer) AS layers_checked,
     COUNT(DISTINCT CONCAT(layer, '/', dataset_name)) AS datasets_checked,
+    SUM(
+        CASE
+            WHEN layer = 'BRONZE' AND check_type = 'VOLUME' THEN total_count
+            ELSE 0
+        END
+    ) AS source_rows_processed,
     SUM(total_count) AS evaluated_values,
     SUM(failed_count) AS failed_rule_evaluations,
+    ROUND(
+        100.0 * COUNT_IF(status = 'PASS') / NULLIF(COUNT(*), 0),
+        3
+    ) AS check_pass_rate_pct,
     ROUND(
         100.0 * SUM(passed_count) / NULLIF(SUM(total_count), 0),
         3
     ) AS weighted_quality_score_pct
 FROM `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`;
+
+CREATE OR REPLACE VIEW `ftw-week-07`.`05-data-quality`.`genie_dq_canonical_dimensions` AS
+WITH dimension_catalog AS (
+    SELECT *
+    FROM VALUES
+        (1, 'COMPLETENESS', 'Completeness', 'Directly measured'),
+        (2, 'TIMELINESS_VOLUME', 'Timeliness / Volume', 'Volume proxy; event latency is not directly measured'),
+        (3, 'VALIDITY', 'Validity', 'Directly measured'),
+        (4, 'ACCURACY', 'Accuracy', 'Requires an authoritative reference and is not currently measured'),
+        (5, 'CONSISTENCY', 'Consistency', 'Includes referential integrity checks'),
+        (6, 'UNIQUENESS', 'Uniqueness', 'Directly measured')
+        AS catalog(dimension_order, dimension_key, dimension_label, measurement_note)
+),
+mapped_checks AS (
+    SELECT
+        CASE
+            WHEN quality_dimension = 'REFERENTIAL_INTEGRITY' THEN 'CONSISTENCY'
+            ELSE quality_dimension
+        END AS dimension_key,
+        status,
+        total_count,
+        passed_count,
+        failed_count
+    FROM `ftw-week-07`.`05-data-quality`.`genie_latest_check_results`
+),
+dimension_scores AS (
+    SELECT
+        dimension_key,
+        COUNT(*) AS total_checks,
+        COUNT_IF(status = 'PASS') AS passed_checks,
+        COUNT_IF(status = 'WARNING') AS warning_checks,
+        COUNT_IF(status = 'FAIL') AS failed_checks,
+        SUM(failed_count) AS failed_rule_evaluations,
+        ROUND(
+            100.0 * SUM(passed_count) / NULLIF(SUM(total_count), 0),
+            3
+        ) AS weighted_quality_score_pct
+    FROM mapped_checks
+    GROUP BY dimension_key
+)
+SELECT
+    catalog.dimension_order,
+    catalog.dimension_key,
+    catalog.dimension_label,
+    scores.total_checks,
+    scores.passed_checks,
+    scores.warning_checks,
+    scores.failed_checks,
+    scores.failed_rule_evaluations,
+    scores.weighted_quality_score_pct,
+    CASE
+        WHEN scores.dimension_key IS NULL THEN 'NOT_MEASURED'
+        ELSE 'MEASURED'
+    END AS measurement_status,
+    catalog.measurement_note
+FROM dimension_catalog AS catalog
+LEFT JOIN dimension_scores AS scores
+    ON catalog.dimension_key = scores.dimension_key;
 
 CREATE OR REPLACE VIEW `ftw-week-07`.`05-data-quality`.`genie_dq_dimension_scores` AS
 SELECT
@@ -214,6 +283,55 @@ GROUP BY
     run_id,
     executed_at,
     layer;
+
+CREATE OR REPLACE VIEW `ftw-week-07`.`05-data-quality`.`genie_dq_daily_history` AS
+WITH layer_runs AS (
+    SELECT
+        CAST(executed_at AS DATE) AS run_date,
+        layer,
+        run_id,
+        MAX(executed_at) AS run_executed_at
+    FROM `ftw-week-07`.`05-data-quality`.`dq_check_results`
+    GROUP BY
+        CAST(executed_at AS DATE),
+        layer,
+        run_id
+),
+ranked_layer_runs AS (
+    SELECT
+        run_date,
+        layer,
+        run_id,
+        run_executed_at,
+        ROW_NUMBER() OVER (
+            PARTITION BY run_date, layer
+            ORDER BY run_executed_at DESC, run_id DESC
+        ) AS run_rank
+    FROM layer_runs
+),
+daily_checks AS (
+    SELECT
+        latest.run_date,
+        checks.*
+    FROM `ftw-week-07`.`05-data-quality`.`dq_check_results` AS checks
+    INNER JOIN ranked_layer_runs AS latest
+        ON checks.layer = latest.layer
+        AND checks.run_id = latest.run_id
+    WHERE latest.run_rank = 1
+)
+SELECT
+    run_date,
+    COUNT(*) AS total_checks,
+    COUNT_IF(status = 'PASS') AS passed_checks,
+    COUNT_IF(status = 'WARNING') AS warning_checks,
+    COUNT_IF(status = 'FAIL') AS failed_checks,
+    SUM(failed_count) AS failed_rule_evaluations,
+    ROUND(
+        100.0 * SUM(passed_count) / NULLIF(SUM(total_count), 0),
+        3
+    ) AS weighted_quality_score_pct
+FROM daily_checks
+GROUP BY run_date;
 
 CREATE OR REPLACE VIEW `ftw-week-07`.`05-data-quality`.`genie_dq_volume_history` AS
 SELECT

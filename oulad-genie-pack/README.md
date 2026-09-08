@@ -22,7 +22,7 @@ Keeping the spaces separate prevents business questions from being answered with
 Genie is the natural-language question layer; the two SQL dashboards remain the fixed monitoring layer.
 
 - Business dashboard: KPI cards for enrollments/outcomes, engagement by result, weekly activity, demographic outcome comparisons, assessment performance, and rule-based risk.
-- Data-quality dashboard: overall health, dimension score, dataset score, current problem table, per-layer history, and source-volume history.
+- Data-quality dashboard: overall health, six reference dimension tiles, dataset score, current problem table, ownership, daily and per-layer history, and source-volume history.
 
 ## Important repository finding
 
@@ -35,8 +35,10 @@ The `genie_latest_check_results` view in this pack safely selects the latest run
 - `00_prepare_genie_sources.sql` — creates all governed sources used by both spaces.
 - `01_business_analytics_examples.sql` — verified-style business question/SQL examples.
 - `02_data_quality_examples.sql` — verified-style DQ question/SQL examples.
+- `03_data_quality_dashboard.sql` — eight Lakeview/AI-BI dashboard datasets.
 - `BUSINESS_GENIE_INSTRUCTIONS.md` — objects, definitions, guardrails, and sample questions.
 - `DATA_QUALITY_GENIE_INSTRUCTIONS.md` — DQ meanings, aggregation rules, guardrails, and sample questions.
+- `DATA_QUALITY_DASHBOARD_GUIDE.md` — visual layout and field mapping for the supplied reference.
 
 ## Cost and reliability choices
 
@@ -45,4 +47,3 @@ The `genie_latest_check_results` view in this pack safely selects the latest run
 - Current DQ queries scan only the latest run per layer after the view is materialized by the SQL warehouse optimizer.
 - Historical queries remain available but are used only when explicitly requested.
 - Rates, grains, and risk interpretation are stated explicitly to reduce ambiguous answers.
-
