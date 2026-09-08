@@ -1,16 +1,4 @@
-# OULAD Updated Data Model
-
-Last updated: 8 September 2026
-
-## Changes from the previous model
-
-The original star schema is logically correct. This revision makes three refinements:
-
-1. Adds role-specific relative-date views so BI tools can create one clear active relationship for every date role.
-2. Renames `interaction_count` to `student_site_day_count` because `sum_click` is the actual number of VLE interactions.
-3. Retains deterministic SHA-256 keys for the coursework implementation, while documenting compact numeric keys as an optional production optimization.
-
-The fact grains, demographic-profile design, and direct fact-to-dimension relationships remain unchanged.
+# OULAD Data Model
 
 ## Business processes and fact grains
 
