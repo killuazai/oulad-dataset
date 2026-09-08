@@ -4,7 +4,7 @@ Reviewed GitHub revision: `ff8990fa08624824793d1ee3b50e97303a2f1a15`.
 
 ## Final assessment
 
-The Bronze, Silver, Gold, and Analytics data flow is structurally sound. The Gold model is a valid fact constellation with three facts sharing conformed dimensions and direct fact-to-dimension relationships. The 173 missing assessment scores are a legitimate source condition and must remain a non-blocking `WARNING`.
+The Bronze, Silver, Gold, and Analytics data flow is structurally sound. The Gold model is a valid fact constellation with three facts sharing conformed dimensions and direct fact-to-dimension relationships. Student identity and demographic attributes are consolidated into one BI dimension without assuming that each learner has only one recorded profile. The 173 missing assessment scores are a legitimate source condition and must remain a non-blocking `WARNING`.
 
 The repository was not fully reproducible because the dashboards read `genie_*` views that were not called by the full pipeline. The original latest-results view also selected one global validator run even though each validation suite creates its own run ID. Accuracy was listed but not measured, several documentation claims did not match the SQL, and some business-dashboard rates used incorrect aggregation denominators.
 
@@ -18,6 +18,7 @@ The repository was not fully reproducible because the dashboards read `genie_*` 
 6. Replaced the dashboard SQL reference queries with versions matching the current dashboard design.
 7. Added exact dashboard revision prompts for changes that must be applied in the Databricks dashboard editor and re-exported.
 8. Updated the final star-schema documentation and the repository README.
+9. Merged `dim_demographics` into `dim_student`; updated facts, Gold validation, Genie sources, and documentation consistently.
 
 ## Upload instructions
 
@@ -36,18 +37,17 @@ After uploading:
 
 ```text
 Setup
-  -> Bronze -> Bronze Validation
-  -> Silver -> Silver Validation
+  -> Bronze -> Bronze Validation -> Silver -> Silver Validation
   -> Gold Dimensions + Gold Facts -> Gold Validation
-  -> Learner Outcomes + Student Engagement + Assessment Performance
-  -> At-Risk Students
-  -> Analytics Validation (including Accuracy reconciliation)
-  -> DQ Dashboard Views
-  -> Prepare Genie/Dashboard Sources
-  -> Business Dashboard Refresh + Data Quality Dashboard Refresh
+  -> Learner Outcomes + Assessment Performance + Student Engagement + At-Risk Students
+  -> Analytics Validation (after all four Analytics outputs; includes Accuracy)
+  -> Business Analytics Dashboard
+
+Bronze Validation + Silver Validation + Gold Validation + Analytics Validation
+  -> Data Quality Dashboard
 ```
 
-`At-Risk Students` must wait for `Student Engagement`. Analytics Validation must wait for all four Analytics tables. Both dashboard refreshes must wait for Prepare Genie/Dashboard Sources.
+All four Analytics tasks depend directly on Gold Validation and can run in parallel. `At-Risk Students` calculates its required engagement and assessment signals directly from validated Gold facts. Analytics Validation must wait for all four Analytics tables. The Business Analytics Dashboard depends directly only on Analytics Validation. The Data Quality Dashboard depends directly only on Bronze Validation, Silver Validation, Gold Validation, and Analytics Validation.
 
 ## Acceptance checks
 

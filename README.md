@@ -6,20 +6,30 @@ A Databricks SQL project that transforms the Open University Learning Analytics 
 
 ```mermaid
 flowchart LR
-    S[Seven OULAD CSV files] --> B[Bronze]
-    B --> QB[Bronze validation]
-    QB --> C[Silver]
-    C --> QS[Silver validation]
-    QS --> G[Gold fact constellation]
-    G --> QG[Gold validation]
-    QG --> A[Analytics]
-    A --> QA[Analytics validation<br/>including Accuracy reconciliation]
-    QA --> V[Dashboard and Genie views]
-    V --> BD[Business dashboard]
-    V --> DD[Data-quality dashboard]
+    SET[Set Up] --> B[Bronze]
+    B --> QB[Bronze Validation]
+    QB --> S[Silver]
+    S --> QS[Silver Validation]
+    QS --> GD[Gold Dimensions]
+    QS --> GF[Gold Facts]
+    GD --> QG[Gold Validation]
+    GF --> QG
+    QG --> LO[Analytics: Learner Outcomes]
+    QG --> AP[Analytics: Assessment Performance]
+    QG --> SE[Analytics: Student Engagement]
+    QG --> AR[Analytics: At-Risk Students]
+    LO --> QA[Analytics Validation<br/>including Accuracy]
+    AP --> QA
+    SE --> QA
+    AR --> QA
+    QA --> BD[Business Analytics Dashboard]
+    QB --> DD[Data Quality Dashboard]
+    QS --> DD
+    QG --> DD
+    QA --> DD
 ```
 
-Every data layer is followed by validation. Quality results are appended to `ftw-week-07.05-data-quality.dq_check_results`; data tables are deterministic full refreshes for this fixed research snapshot.
+This mirrors the Databricks job dependencies. Gold dimensions and facts run in parallel after Silver validation. Learner Outcomes, Assessment Performance, Student Engagement, and At-Risk Students all depend directly on Gold Validation and feed Analytics Validation. The Business Analytics Dashboard has one direct dependency: Analytics Validation. The Data Quality Dashboard has only four direct dependencies: Bronze Validation, Silver Validation, Gold Validation, and Analytics Validation. Quality results are appended to `ftw-week-07.05-data-quality.dq_check_results`.
 
 ## Schemas
 
@@ -74,7 +84,7 @@ The model is a fact constellation with three declared grains:
 - `fact_assessment_submission`: one learner submission for one assessment.
 - `fact_vle_interaction`: one learner, VLE site, relative day, and module presentation.
 
-Shared dimensions are Student, Demographics, Module Presentation, and Relative Date. Assessment and VLE Activity are process-specific dimensions. Five role-playing date views provide unambiguous BI relationships without duplicating the physical date table. See `docs/data_model.md`.
+Shared dimensions are Student, Module Presentation, and Relative Date. Demographic attributes are stored in `dim_student`, removing a redundant BI join. Assessment and VLE Activity are process-specific dimensions. Five role-playing date views provide unambiguous BI relationships without duplicating the physical date table. See `docs/data_model.md`.
 
 ## Data-quality interpretation
 

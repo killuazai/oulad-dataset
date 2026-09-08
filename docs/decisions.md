@@ -28,9 +28,9 @@ Bronze preserves repeated learner-site-day records. Silver sums their clicks to 
 
 SHA-256 keys are reproducible for coursework. Every relevant key is placed directly on each fact, avoiding snowball joins. A production-scale implementation may adopt compact numeric keys if changed consistently everywhere.
 
-## Separate learner identity and demographics
+## Combined student and demographic dimension
 
-One learner can have different demographic profiles across module presentations. `dim_student` stores identity; `dim_demographics` stores the profile used for the specific enrollment and is linked directly from every fact.
+`dim_student` contains learner identity and demographic attributes, so BI uses one direct student-dimension join. The source is not perfectly static: 72 learners have two recorded demographic profiles. Therefore `student_key` identifies the combination of `id_student` and demographic values, producing one row per learner-profile version rather than incorrectly forcing one row per learner. Facts receive the version recorded for their module presentation.
 
 ## Accurate aggregate measures
 

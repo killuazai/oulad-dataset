@@ -55,10 +55,10 @@ CREATE OR REPLACE VIEW `ftw-week-07`.`04-analytics`.genie_demographic_outcomes A
 SELECT
   enrollment.code_module,
   enrollment.code_presentation,
-  COALESCE(demographic.gender, 'UNKNOWN') AS gender,
-  COALESCE(demographic.age_band, 'UNKNOWN') AS age_band,
-  COALESCE(demographic.highest_education, 'UNKNOWN') AS highest_education,
-  COALESCE(demographic.imd_band, 'UNKNOWN') AS imd_band,
+  COALESCE(student.gender, 'UNKNOWN') AS gender,
+  COALESCE(student.age_band, 'UNKNOWN') AS age_band,
+  COALESCE(student.highest_education, 'UNKNOWN') AS highest_education,
+  COALESCE(student.imd_band, 'UNKNOWN') AS imd_band,
   COUNT(*) AS student_enrollments,
   SUM(enrollment.withdrawn_count) AS withdrawn_students,
   SUM(enrollment.passed_count + enrollment.distinction_count) AS successful_students,
@@ -68,15 +68,15 @@ SELECT
   ROUND(AVG(enrollment.studied_credits), 2) AS average_studied_credits,
   ROUND(AVG(enrollment.num_of_prev_attempts), 2) AS average_previous_attempts
 FROM `ftw-week-07`.`03-mart`.fact_student_enrollment AS enrollment
-INNER JOIN `ftw-week-07`.`03-mart`.dim_demographics AS demographic
-  ON enrollment.demographics_key = demographic.demographics_key
+INNER JOIN `ftw-week-07`.`03-mart`.dim_student AS student
+  ON enrollment.student_key = student.student_key
 GROUP BY
   enrollment.code_module,
   enrollment.code_presentation,
-  COALESCE(demographic.gender, 'UNKNOWN'),
-  COALESCE(demographic.age_band, 'UNKNOWN'),
-  COALESCE(demographic.highest_education, 'UNKNOWN'),
-  COALESCE(demographic.imd_band, 'UNKNOWN');
+  COALESCE(student.gender, 'UNKNOWN'),
+  COALESCE(student.age_band, 'UNKNOWN'),
+  COALESCE(student.highest_education, 'UNKNOWN'),
+  COALESCE(student.imd_band, 'UNKNOWN');
 
 CREATE OR REPLACE VIEW `ftw-week-07`.`04-analytics`.genie_risk_summary AS
 SELECT

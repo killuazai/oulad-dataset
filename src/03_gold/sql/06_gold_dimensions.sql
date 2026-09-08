@@ -1,7 +1,7 @@
 -- Databricks notebook source
 -- Name: 06 - Gold Dimensions
 -- Purpose: Build conformed dimensions that every BI fact joins to directly.
--- Grain: One row per business entity represented by each physical dimension.
+-- Grain: One row per business entity or learner-demographic profile.
 
 DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
 DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
@@ -27,17 +27,10 @@ CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_student')
 USING DELTA
 AS
 SELECT DISTINCT
-  SHA2(CAST(id_student AS STRING), 256) AS student_key,
-  id_student
-FROM IDENTIFIER(clean_namespace || '.student_info_clean');
-
-CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_demographics')
-USING DELTA
-AS
-SELECT DISTINCT
   SHA2(
     CONCAT_WS(
       '||',
+      CAST(id_student AS STRING),
       COALESCE(gender, 'UNKNOWN'),
       COALESCE(region, 'UNKNOWN'),
       COALESCE(highest_education, 'UNKNOWN'),
@@ -46,7 +39,8 @@ SELECT DISTINCT
       COALESCE(disability, 'UNKNOWN')
     ),
     256
-  ) AS demographics_key,
+  ) AS student_key,
+  id_student,
   gender,
   region,
   highest_education,
@@ -54,6 +48,9 @@ SELECT DISTINCT
   age_band,
   disability
 FROM IDENTIFIER(clean_namespace || '.student_info_clean');
+
+-- Demographics are folded into dim_student. Remove the obsolete standalone table.
+DROP TABLE IF EXISTS IDENTIFIER(mart_namespace || '.dim_demographics');
 
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_assessment')
 USING DELTA

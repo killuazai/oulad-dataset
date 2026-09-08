@@ -4,20 +4,27 @@
 
 ```mermaid
 flowchart LR
-    S[Seven CSV files] --> B[Bronze]
-    B --> QB[Bronze DQ]
+    SET[Set Up] --> B[Bronze]
+    B --> QB[Bronze Validation]
     QB --> C[Silver]
-    C --> QS[Silver DQ]
+    C --> QS[Silver Validation]
     QS --> GD[Gold dimensions]
     QS --> GF[Gold facts]
-    GD --> QG[Gold DQ]
+    GD --> QG[Gold Validation]
     GF --> QG
-    QG --> A[Four Analytics tables]
-    A --> QA[Analytics DQ<br/>including Accuracy reconciliation]
-    QA --> DV[Core DQ views]
-    DV --> GV[Governed Genie/dashboard views]
-    GV --> BD[Business dashboard]
-    GV --> DD[DQ dashboard]
+    QG --> LO[Learner Outcomes]
+    QG --> AP[Assessment Performance]
+    QG --> SE[Student Engagement]
+    QG --> AR[At-Risk Students]
+    LO --> QA[Analytics Validation<br/>including Accuracy]
+    AP --> QA
+    SE --> QA
+    AR --> QA
+    QA --> BD[Business Analytics Dashboard]
+    QB --> DD[Data Quality Dashboard]
+    QS --> DD
+    QG --> DD
+    QA --> DD
 ```
 
 OULAD is a fixed research snapshot, so transformation tables use deterministic full refreshes. `dq_check_results` is append-only for audit and trend analysis.
@@ -28,7 +35,8 @@ OULAD is a fixed research snapshot, so transformation tables use deterministic f
 - Every transformed layer is followed by a critical gate.
 - Reconciliation stops dashboard refresh when control totals change across layers.
 - Noncritical known conditions remain visible as warnings.
-- Dashboard source views refresh only after all four validation suites succeed; the Analytics suite includes the cross-layer Accuracy gate.
+- The business dashboard waits for Analytics validation.
+- The data-quality dashboard waits for Bronze, Silver, Gold, and Analytics validation; the Analytics suite includes the cross-layer Accuracy gate.
 
 ## Cost and scalability
 

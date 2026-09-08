@@ -1,17 +1,26 @@
 -- Databricks notebook source
 -- Name: 12 - At-Risk Students
--- Purpose: Create a transparent screening table from engagement, assessment, and registration signals.
--- Grain: One row per student and course presentation.
+-- Purpose: Create a transparent screening table directly from validated Gold facts.
+-- Grain: One student enrollment in one module presentation.
 -- Thresholds: 2 points for no VLE use, no submissions, or average score below 40;
 --             1 point for fewer than 25 clicks, average score from 40 to below 50,
 --             or registration after presentation day zero. High >= 4, Medium >= 2.
-DECLARE OR REPLACE VARIABLE analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
-DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
 
 CREATE OR REPLACE TABLE IDENTIFIER(analytics_namespace || '.at_risk_students')
 USING DELTA
 AS
-WITH assessment_signals AS (
+WITH engagement_signals AS (
+  SELECT
+    module_presentation_key,
+    student_key,
+    COUNT(DISTINCT activity_date) AS active_days,
+    SUM(sum_click) AS total_clicks
+  FROM IDENTIFIER(mart_namespace || '.fact_vle_interaction')
+  GROUP BY
+    module_presentation_key,
+    student_key
+),
+assessment_signals AS (
   SELECT
     module_presentation_key,
     student_key,
@@ -32,14 +41,14 @@ signals AS (
     enrollment.code_presentation,
     enrollment.id_student,
     enrollment.date_registration,
-    engagement.active_days,
-    engagement.total_clicks,
+    COALESCE(engagement.active_days, 0) AS active_days,
+    COALESCE(engagement.total_clicks, 0) AS total_clicks,
     COALESCE(assessment.submission_count, 0) AS submission_count,
     assessment.average_score,
     COALESCE(assessment.late_submission_count, 0) AS late_submission_count,
     enrollment.final_result,
     CASE
-      WHEN engagement.total_clicks = 0 THEN 2
+      WHEN COALESCE(engagement.total_clicks, 0) = 0 THEN 2
       WHEN engagement.total_clicks < 25 THEN 1
       ELSE 0
     END
@@ -51,8 +60,9 @@ signals AS (
       END
       + CASE WHEN enrollment.date_registration > 0 THEN 1 ELSE 0 END AS risk_score
   FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment') AS enrollment
-  INNER JOIN IDENTIFIER(analytics_namespace || '.student_engagement') AS engagement
-    ON enrollment.student_enrollment_key = engagement.student_enrollment_key
+  LEFT JOIN engagement_signals AS engagement
+    ON enrollment.module_presentation_key = engagement.module_presentation_key
+    AND enrollment.student_key = engagement.student_key
   LEFT JOIN assessment_signals AS assessment
     ON enrollment.module_presentation_key = assessment.module_presentation_key
     AND enrollment.student_key = assessment.student_key
