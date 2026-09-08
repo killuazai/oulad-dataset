@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Dependency-free checks for the OULAD pipeline repository."""
+"""Dependency-free structural checks for the OULAD repository."""
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -12,7 +13,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 REQUIRED_FILES = (
     "README.md",
-    "CONTRIBUTING.md",
     "src/00_setup/01_setup.sql",
     "src/01_bronze/sql/02_bronze_sources.sql",
     "src/02_silver/sql/04_silver_tables.sql",
@@ -23,14 +23,18 @@ REQUIRED_FILES = (
     "src/04_analytics/sql/11_assessment_performance.sql",
     "src/04_analytics/sql/12_at_risk_students.sql",
     "src/05_data_quality/sql/14_dq_dashboard_views.sql",
-    "dashboards/data_quality_dashboard.sql",
-    "dashboards/business_dashboard.sql",
-    "docs/naming_conventions.md",
-    "docs/data_quality_methodology.md",
     "tests/03_validate_bronze.sql",
     "tests/05_validate_silver.sql",
     "tests/08_validate_gold.sql",
     "tests/13_validate_analytics.sql",
+    "oulad-genie-pack/00_prepare_genie_sources.sql",
+    "dashboards/business_dashboard.sql",
+    "dashboards/data_quality_dashboard.sql",
+    "dashboards/BUSINESS_DASHBOARD_REVISION_PROMPT.md",
+    "dashboards/DATA_QUALITY_DASHBOARD_REVISION_PROMPT.md",
+    "docs/data_model.md",
+    "docs/data_quality_methodology.md",
+    "docs/validation.md",
 )
 
 FULL_RUNNER_TARGETS = (
@@ -48,13 +52,16 @@ FULL_RUNNER_TARGETS = (
     "src/04_analytics/sql/12_at_risk_students.sql",
     "tests/13_validate_analytics.sql",
     "src/05_data_quality/sql/14_dq_dashboard_views.sql",
+    "oulad-genie-pack/00_prepare_genie_sources.sql",
 )
 
-PRODUCTION_GLOBS = ("src/**/*.sql", "queries/**/*.sql", "dashboards/**/*.sql")
-FORBIDDEN_PATTERNS = {
-    "unqualified SELECT star": re.compile(r"\bSELECT\s+\*\b", re.IGNORECASE),
-    "unfinished TODO marker": re.compile(r"\bTODO\b", re.IGNORECASE),
-}
+SQL_GLOBS = (
+    "src/**/*.sql",
+    "tests/**/*.sql",
+    "queries/**/*.sql",
+    "dashboards/**/*.sql",
+    "oulad-genie-pack/**/*.sql",
+)
 
 
 def main() -> int:
@@ -64,46 +71,59 @@ def main() -> int:
         if not (ROOT / relative_path).is_file():
             errors.append(f"missing required file: {relative_path}")
 
-    production_files = sorted(
-        path
-        for pattern in PRODUCTION_GLOBS
-        for path in ROOT.glob(pattern)
-        if path.is_file()
+    sql_files = sorted(
+        {
+            path
+            for pattern in SQL_GLOBS
+            for path in ROOT.glob(pattern)
+            if path.is_file()
+        }
     )
 
-    seen_numbers: dict[int, Path] = {}
-    for path in sorted(ROOT.glob("src/**/*.sql")):
-        match = re.match(r"(\d+)_", path.name)
-        if not match:
-            errors.append(f"production SQL is not numbered: {path.relative_to(ROOT)}")
-            continue
-        number = int(match.group(1))
-        if number in seen_numbers:
-            errors.append(
-                "duplicate production step number "
-                f"{number}: {seen_numbers[number].relative_to(ROOT)} and {path.relative_to(ROOT)}"
-            )
-        seen_numbers[number] = path
-
-    for path in production_files:
+    for path in sql_files:
         text = path.read_text(encoding="utf-8")
         relative_path = path.relative_to(ROOT)
         if not text.strip():
             errors.append(f"empty SQL file: {relative_path}")
-            continue
-        for label, pattern in FORBIDDEN_PATTERNS.items():
-            if pattern.search(text):
-                errors.append(f"{label} in {relative_path}")
+        if re.search(r"\bTODO\b", text, re.IGNORECASE):
+            errors.append(f"unfinished TODO marker: {relative_path}")
+        if re.search(r"\bSELECT\s+\*\b", text, re.IGNORECASE):
+            errors.append(f"unqualified SELECT star: {relative_path}")
 
-    full_runner = ROOT / "notebooks/00_run_full_pipeline.sql"
-    if not full_runner.is_file():
-        errors.append("missing full pipeline runner: notebooks/00_run_full_pipeline.sql")
+    runner = ROOT / "notebooks/00_run_full_pipeline.sql"
+    if not runner.is_file():
+        errors.append("missing full pipeline runner")
     else:
-        runner_text = full_runner.read_text(encoding="utf-8")
+        runner_text = runner.read_text(encoding="utf-8")
+        last_position = -1
         for target in FULL_RUNNER_TARGETS:
             notebook_path = "../" + target.removesuffix(".sql")
-            if f"%run {notebook_path}" not in runner_text:
-                errors.append(f"full pipeline runner does not invoke: {target}")
+            position = runner_text.find(f"%run {notebook_path}")
+            if position < 0:
+                errors.append(f"full runner does not invoke: {target}")
+            elif position <= last_position:
+                errors.append(f"full runner target is out of order: {target}")
+            last_position = max(last_position, position)
+
+    assessment_sql = ROOT / "src/04_analytics/sql/11_assessment_performance.sql"
+    if assessment_sql.is_file():
+        text = assessment_sql.read_text(encoding="utf-8")
+        for required_column in (
+            "scored_submission_count",
+            "missing_score_count",
+            "score_sum",
+            "passed_submission_count",
+            "dated_submission_count",
+            "late_submission_count",
+        ):
+            if required_column not in text:
+                errors.append(f"assessment controls missing: {required_column}")
+
+    for dashboard in sorted((ROOT / "dashboards").glob("*.lvdash.json")):
+        try:
+            json.loads(dashboard.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            errors.append(f"invalid dashboard JSON {dashboard.name}: {error}")
 
     if errors:
         print("Repository checks failed:")
@@ -111,7 +131,7 @@ def main() -> int:
             print(f"- {error}")
         return 1
 
-    print(f"Repository checks passed ({len(production_files)} SQL files inspected).")
+    print(f"Repository checks passed ({len(sql_files)} SQL files inspected).")
     return 0
 
 

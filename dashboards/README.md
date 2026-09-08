@@ -1,28 +1,59 @@
-# Dashboard build guide
+# Dashboard build and maintenance guide
 
-Run the full pipeline first. Then create two Databricks Lakeview dashboards from the prepared SQL datasets below. The same queries also work as starting points in Metabase.
+Run `notebooks/00_run_full_pipeline.sql` before refreshing either dashboard. The final runner step creates the `genie_*` views used by the exported dashboards.
 
-## Data quality dashboard
+## Business Analytics dashboard
 
-Use `data_quality_dashboard.sql` and place these visuals in reading order:
+Use `business_dashboard.sql` as the formula reference and apply `BUSINESS_DASHBOARD_REVISION_PROMPT.md` to the Databricks dashboard.
 
-1. KPI cards: overall score, passed checks, failed checks, critical failures, affected datasets, and last checked time.
-2. Horizontal bars: weighted score by quality dimension.
-3. Heat map or table: layer and dataset score with PASS, WARNING, and FAIL counts.
-4. Problem table: severity, owner, expectation, failed values, and failure rate.
-5. Line chart: overall score and failed checks by execution time.
-6. Volume chart: observed source row count by dataset and execution time.
+Required content:
 
-The first row should answer pipeline health in about ten seconds. Filters should include `layer`, `dataset_name`, `quality_dimension`, `severity`, `status`, and `executed_at`.
+1. Outcome and assessment KPI cards.
+2. Stacked enrollment outcomes by module presentation.
+3. Top withdrawal-rate module presentations.
+4. Engagement by final result.
+5. Weekly VLE activity.
+6. Assessment score, pass-rate, and late-submission analysis.
+7. Demographic withdrawal analysis with precise chart labels.
+8. Rule-based risk distribution and observed outcomes.
+9. Compact detailed outcomes table.
 
-## Business dashboard
+Global filters are Module and Presentation. Assessment Type, Final Result, and Risk Level are contextual filters mapped only to compatible datasets.
 
-Use `business_dashboard.sql` for the Day 7 OULAD questions:
+All rates must be recomputed from additive numerators and denominators. Do not average rates, distinct counts, or group medians.
 
-1. Engagement versus final result.
-2. Withdrawal patterns by module presentation.
-3. VLE activity over relative course week.
-4. Outcomes by demographic profile.
-5. Late submission rate versus assessment performance.
+## Data Quality dashboard
 
-Keep dashboard joins fact-to-dimension only. Never relate one dimension to another in the BI semantic model; the conformed keys already exist directly on every relevant fact.
+Use `data_quality_dashboard.sql` as the formula reference and apply `DATA_QUALITY_DASHBOARD_REVISION_PROMPT.md`.
+
+### DQ Overview
+
+- Weighted DQ Score %, displayed to three decimals
+- Check Pass Rate %
+- Source Rows Processed
+- Failed Rule Evaluations
+- Checks Needing Attention
+- Six canonical dimensions, including transformation Accuracy
+- Current score by validation suite
+- Layer and dataset score table
+- 100% stacked check-status bar
+
+### Problems & Volume
+
+- Checks Needing Attention drill-down
+- Latest source-volume controls
+- Checks Needing Attention by Owner
+
+Global filters are Validation Suite, Dataset, Quality Dimension, and Status. Problem-page filters are Severity, Owner, Column, Volume Dataset, and Volume Status.
+
+Do not display a historical trend until at least three run dates exist. Accuracy is cross-layer reconciliation, not external ground truth. The 173 missing score warning is expected and must remain visible.
+
+## Export control
+
+The `.lvdash.json` file is the deployed dashboard definition. Whenever the dashboard is modified in Databricks:
+
+1. Publish and test the dashboard.
+2. Export the current `.lvdash.json`.
+3. Replace the old repository export.
+4. Verify that the export does not contain `Untitled page` or an empty Global Filters page.
+5. Confirm every referenced source is created by the full runner.

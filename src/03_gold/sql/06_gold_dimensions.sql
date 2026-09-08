@@ -1,9 +1,8 @@
 -- Databricks notebook source
 -- Name: 06 - Gold Dimensions
 -- Purpose: Build conformed dimensions that every BI fact joins to directly.
--- Grain: One row per business entity represented by each dimension.
+-- Grain: One row per business entity represented by each physical dimension.
 
--- Explanation: Declare variables needed from the setup notebook.
 DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
 DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
 
@@ -93,24 +92,16 @@ WITH date_bounds AS (
   FROM (
     SELECT assessment_date AS relative_day
     FROM IDENTIFIER(clean_namespace || '.assessments_clean')
-
     UNION ALL
-
     SELECT date_submitted
     FROM IDENTIFIER(clean_namespace || '.student_assessment_clean')
-
     UNION ALL
-
     SELECT activity_date
     FROM IDENTIFIER(clean_namespace || '.student_vle_clean')
-
     UNION ALL
-
     SELECT date_registration
     FROM IDENTIFIER(clean_namespace || '.student_registration_clean')
-
     UNION ALL
-
     SELECT date_unregistration
     FROM IDENTIFIER(clean_namespace || '.student_registration_clean')
   ) AS source_dates
@@ -132,3 +123,44 @@ SELECT
     ELSE 'WEEK 25+'
   END AS course_phase
 FROM relative_days;
+
+-- Role-playing views keep one physical date dimension while providing unambiguous BI relationships.
+CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_registration_date') AS
+SELECT
+  relative_date_key AS registration_date_key,
+  relative_day AS registration_relative_day,
+  relative_week AS registration_relative_week,
+  course_phase AS registration_course_phase
+FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
+
+CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_unregistration_date') AS
+SELECT
+  relative_date_key AS unregistration_date_key,
+  relative_day AS unregistration_relative_day,
+  relative_week AS unregistration_relative_week,
+  course_phase AS unregistration_course_phase
+FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
+
+CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_submission_date') AS
+SELECT
+  relative_date_key AS submitted_date_key,
+  relative_day AS submitted_relative_day,
+  relative_week AS submitted_relative_week,
+  course_phase AS submitted_course_phase
+FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
+
+CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_due_date') AS
+SELECT
+  relative_date_key AS due_date_key,
+  relative_day AS due_relative_day,
+  relative_week AS due_relative_week,
+  course_phase AS due_course_phase
+FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
+
+CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_activity_date') AS
+SELECT
+  relative_date_key AS activity_date_key,
+  relative_day AS activity_relative_day,
+  relative_week AS activity_relative_week,
+  course_phase AS activity_course_phase
+FROM IDENTIFIER(mart_namespace || '.dim_relative_date');

@@ -1,44 +1,29 @@
 # Naming conventions
 
-These rules keep SQL predictable across Databricks, GitHub, and BI tools.
-
-## Database objects
-
 | Object | Convention | Example |
-| --- | --- | --- |
-| Catalog | Course-week catalog | `ftw-week-07` |
-| Source schema | Ordered layer name | `00-source` |
-| Layer schema | Ordered lecture layer | `01-raw`, `02-clean`, `03-mart` |
-| Analytics schema | Ordered serving layer | `04-analytics` |
-| Quality schema | Ordered monitoring layer | `05-data-quality` |
-| Dimension | `dim_` plus singular noun | `dim_student` |
-| Fact | `fact_` plus singular business event | `fact_vle_interaction` |
-| Dashboard view | `dq_dashboard_` plus subject | `dq_dashboard_overview` |
-| Clean table | Source entity plus `_clean` | `student_info_clean` |
+|---|---|---|
+| Catalog | Course/week name, quoted because it contains hyphens | `ftw-week-07` |
+| Ordered schema | Two-digit prefix and lowercase name | `01-raw`, `05-data-quality` |
+| Physical dimension | `dim_` + singular entity | `dim_student` |
+| Role-playing dimension view | `dim_` + role + `_date` | `dim_submission_date` |
+| Fact | `fact_` + singular business process | `fact_assessment_submission` |
+| Clean table | Source entity + `_clean` | `student_assessment_clean` |
+| Analytics table | Descriptive lower snake case | `assessment_performance` |
+| Core DQ view | `dq_dashboard_` + subject | `dq_dashboard_overview` |
+| Governed dashboard/Genie view | `genie_` + subject | `genie_dq_problem_areas` |
 
-Bronze, Silver, and Gold correspond to the workspace schemas Raw, Clean, and Mart. The numeric prefixes preserve execution order in the Catalog Explorer. Hyphenated Unity Catalog names are passed through `IDENTIFIER()` or enclosed in backticks.
+Rules:
 
-## Columns and keys
+- Use lowercase `snake_case` for objects, columns, and aliases.
+- Use uppercase controlled values for validation suite, quality dimension, severity, and status.
+- Use `<entity>_key` for dimension keys and `<event>_key` for fact keys.
+- Use `_count` for additive counts, `_sum` for additive numeric totals, `_rate` for 0–1 values, and `_pct` for 0–100 values.
+- Use `_at` for timestamps. OULAD offsets use `_day` or `relative_` names because they are not calendar dates.
+- Use team roles such as `data_engineering` and `analytics` for `check_owner`.
+- Allowed status values: `PASS`, `WARNING`, `FAIL`.
+- Allowed severity values: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`.
+- Validation suite values: `BRONZE`, `SILVER`, `GOLD`, `ANALYTICS`. Accuracy is a quality dimension within the Analytics suite, not a layer or suite.
+- Production transformations belong in `src/`, gates in `tests/`, BI datasets in `dashboards/`, and experiments in `queries/`.
+- Every table file states one explicit grain.
 
-- Use lowercase `snake_case` for every schema, table, view, column, and SQL alias.
-- Use source business identifiers unchanged when their meaning is clear: `id_student`, `id_assessment`, and `id_site`.
-- Name hashed dimensional keys `<entity>_key` and fact row keys `<event>_key`.
-- Name measures with their unit or aggregation when ambiguity is possible: `score_pct`, `failed_count`, `relative_week`.
-- Use `_at` for timestamps, `_date` for real calendar dates, and `_day` for OULAD relative-day offsets.
-- Use `_count` for additive counts, `_rate` for values from 0 to 1, and `_pct` for values from 0 to 100.
-- Name booleans as past-tense or state questions, such as `passed_assessment` and `is_banked`.
-
-## SQL and repository files
-
-- Prefix production SQL filenames with their execution number: `06_gold_dimensions.sql`.
-- Use one stable grain per table and state it in the file header.
-- Put reusable transformations in `src/`, validation gates in `tests/`, dashboard datasets in `dashboards/`, and safe experiments in `queries/`.
-- Use descriptive branch names such as `feature/dq-dashboard` or `fix/vle-grain`.
-- Use imperative commit subjects such as `Add persistent quality metrics`.
-
-## Quality metadata
-
-- Use uppercase controlled values for `layer`, `quality_dimension`, `check_type`, `severity`, and `status`.
-- Allowed statuses are `PASS`, `WARNING`, and `FAIL`.
-- Allowed severity values are `CRITICAL`, `HIGH`, `MEDIUM`, and `LOW`.
-- Use team roles rather than a person's name for `check_owner`, such as `data_engineering` or `analytics`.
+Hyphenated catalog and schema identifiers must be enclosed in backticks or passed through `IDENTIFIER()`.

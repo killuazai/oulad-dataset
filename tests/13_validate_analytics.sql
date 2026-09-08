@@ -1,5 +1,4 @@
 -- Databricks notebook source
--- Databricks notebook source
 -- Name: 13 - Analytics Validation
 -- Purpose: Validate Analytics outputs, including cross-layer transformation Accuracy.
 -- Grain: One row per data-quality check and validation-suite run.
@@ -72,8 +71,9 @@ analytics_engagement AS (
 analytics_assessment AS (
   SELECT
     SUM(submission_count) AS submission_count,
-    SUM(submission_count - missing_score_count) AS scored_count,
-    SUM(missing_score_count) AS missing_score_count
+    SUM(scored_submission_count) AS scored_count,
+    SUM(missing_score_count) AS missing_score_count,
+    SUM(score_sum) AS score_sum
   FROM IDENTIFIER(analytics_namespace || '.assessment_performance')
 ),
 checks AS (
@@ -132,8 +132,10 @@ checks AS (
     0, 'CRITICAL', 'analytics', COUNT(*),
     COUNT_IF(
       submission_count <= 0
-      OR missing_score_count < 0
-      OR missing_score_count > submission_count
+      OR scored_submission_count + missing_score_count <> submission_count
+      OR passed_submission_count > scored_submission_count
+      OR dated_submission_count > submission_count
+      OR late_submission_count > dated_submission_count
       OR average_score IS NULL
       OR average_score NOT BETWEEN 0 AND 100
       OR pass_rate IS NULL
@@ -247,14 +249,15 @@ checks AS (
 
   SELECT
     'assessment_performance',
-    'submission_count, scored_count, missing_score_count',
+    'submission_count, scored_count, missing_score_count, score_sum',
     'Gold controls reconcile with Analytics assessment performance',
     'ACCURACY', 'CONTROL_TOTAL_RECONCILIATION',
-    'Three assessment controls are unchanged in assessment_performance',
-    0, 'CRITICAL', 'analytics', 3,
+    'Four assessment controls are unchanged in assessment_performance',
+    0, 'CRITICAL', 'analytics', 4,
     CASE WHEN gold.row_count <> analytics.submission_count THEN 1 ELSE 0 END
       + CASE WHEN gold.scored_count <> analytics.scored_count THEN 1 ELSE 0 END
       + CASE WHEN gold.missing_score_count <> analytics.missing_score_count THEN 1 ELSE 0 END
+      + CASE WHEN gold.score_sum <> analytics.score_sum THEN 1 ELSE 0 END
   FROM gold_assessment AS gold
   CROSS JOIN analytics_assessment AS analytics
 ),

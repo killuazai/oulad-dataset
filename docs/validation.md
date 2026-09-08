@@ -1,22 +1,26 @@
-# Validation
+# Validation reference
 
-Every validation file both appends check results to `ftw-week-07.05-data-quality.dq_check_results` and applies a pipeline gate.
+| Order | File | Suite | Main coverage |
+|---:|---|---|---|
+| 1 | `tests/03_validate_bronze.sql` | BRONZE | Required identifiers, source grains, domains, parsing rescue, and expected volume |
+| 2 | `tests/05_validate_silver.sql` | SILVER | Clean grains, parent relationships, positive clicks, and score-null monitoring |
+| 3 | `tests/08_validate_gold.sql` | GOLD | Dimension keys, fact grains, direct keys, fact ranges, and enrollment reconciliation |
+| 4 | `tests/13_validate_analytics.sql` | ANALYTICS | Output grains, outcome totals, additive assessment controls, metric bounds, enrollment reconciliation, and Silver→Gold→Analytics Accuracy controls |
 
-| Step | File | Main coverage |
-| --- | --- | --- |
-| Bronze | `tests/03_validate_bronze.sql` | Required identifiers, uniqueness, accepted values, ranges, schema rescue, published source volume |
-| Silver | `tests/05_validate_silver.sql` | Clean grains, referential integrity, positive clicks, score null-rate monitoring |
-| Gold | `tests/08_validate_gold.sql` | Dimension uniqueness, direct fact-to-dimension keys, measure ranges, row reconciliation |
-| Analytics | `tests/13_validate_analytics.sql` | Reporting grain, metric bounds, enrollment reconciliation |
+Every suite persists its result before applying its gate. A critical FAIL calls `ASSERT_TRUE` and stops downstream execution.
 
-Critical failures call `ASSERT_TRUE` and stop the Databricks run. A noncritical failure is persisted for investigation but does not block downstream work. See `data_quality_methodology.md` for scoring and status rules.
-
-## Known source conditions
+Known non-errors:
 
 - `imd_band` may be null.
 - Registration and unregistration offsets may be null.
 - Exam due offsets may be null.
-- The official source contains 173 null assessment scores; non-null scores must remain from 0 through 100.
-- Bronze `student_vle` contains repeated learner, site, and day combinations. Silver deliberately sums them to one row at the declared Gold fact grain.
+- The source has 173 missing scores.
+- Bronze VLE contains repeated learner-site-day rows that Silver sums to the declared daily grain.
 
-These conditions are monitored or explicitly modeled rather than silently imputed.
+Acceptance after a full run:
+
+- Four suites are present in `genie_latest_check_results`.
+- `ACCURACY` checks are stored in the `ANALYTICS` suite.
+- Accuracy is MEASURED in `genie_dq_canonical_dimensions`.
+- No critical FAIL exists.
+- The known score condition is one WARNING, not an imputed PASS.

@@ -1,64 +1,70 @@
 # Data dictionary
 
-## Shared identifiers
+## Shared natural identifiers
 
 | Column | Meaning |
-| --- | --- |
+|---|---|
 | `code_module` | Anonymized module identifier |
 | `code_presentation` | Anonymized year and start-term identifier |
-| `id_student` | Anonymized student identifier |
+| `id_student` | Anonymized learner identifier |
 | `id_assessment` | Assessment identifier |
-| `id_site` | VLE activity identifier |
+| `id_site` | VLE activity identifier within a module presentation |
 
-## Bronze ingestion metadata
+## Bronze metadata
 
 | Column | Meaning |
-| --- | --- |
-| `_rescued_data` | Values that did not match the explicit source schema |
-| `source_file` | Input path captured from Databricks file metadata |
-| `ingested_at` | Timestamp of the full-refresh load |
+|---|---|
+| `_rescued_data` | Input values that did not match the explicit CSV schema |
+| `source_file` | Source path from Databricks file metadata |
+| `ingested_at` | Full-refresh ingestion timestamp |
 
 ## Gold dimensions
 
-| Table | Key | Important attributes |
-| --- | --- | --- |
-| `dim_student` | `student_key` | `id_student` |
-| `dim_demographics` | `demographics_key` | `gender`, `region`, `highest_education`, `imd_band`, `age_band`, `disability` |
-| `dim_module_presentation` | `module_presentation_key` | `code_module`, `code_presentation`, year, term, duration |
-| `dim_assessment` | `assessment_key` | `id_assessment`, type, relative due day, weight |
-| `dim_vle_activity` | `vle_activity_key` | `id_site`, activity type, optional availability weeks |
-| `dim_relative_date` | `relative_date_key` | `relative_day`, `relative_week`, `course_phase` |
+| Object | Key | Grain |
+|---|---|---|
+| `dim_student` | `student_key` | One anonymized learner |
+| `dim_demographics` | `demographics_key` | One distinct demographic profile |
+| `dim_module_presentation` | `module_presentation_key` | One module presentation |
+| `dim_assessment` | `assessment_key` | One assessment |
+| `dim_vle_activity` | `vle_activity_key` | One VLE site in one module presentation |
+| `dim_relative_date` | `relative_date_key` | One relative course day |
+
+`dim_registration_date`, `dim_unregistration_date`, `dim_submission_date`, `dim_due_date`, and `dim_activity_date` are role-playing views of `dim_relative_date`.
 
 ## Gold facts
 
-### `fact_student_enrollment`
+| Fact | Primary key | Grain | Main measures |
+|---|---|---|---|
+| `fact_student_enrollment` | `student_enrollment_key` | Learner and module presentation | Enrollment, outcome counters, credits, attempts |
+| `fact_assessment_submission` | `assessment_submission_key` | Learner and assessment | Submission count, score, pass flag, due-day difference |
+| `fact_vle_interaction` | `vle_interaction_key` | Learner, VLE site, relative day, module presentation | `sum_click`, `student_site_day_count` |
 
-One row per student and module presentation. It contains direct keys to student, demographics, module presentation, registration date, and unregistration date. Additive measures include `enrollment_count`, `withdrawn_count`, `failed_count`, `passed_count`, and `distinction_count`; other context includes credits, prior attempts, relative registration dates, and final result.
+`student_site_day_count` is always one. It counts rows at the declared fact grain; it is not a click count. `sum_click` is the recorded engagement total.
 
-### `fact_assessment_submission`
+## Assessment Analytics controls
 
-One row per student and assessment. It contains direct keys to student, demographics, module presentation, assessment, submitted date, and due date. Measures include `submission_count`, `score`, `days_from_due_date`, and `passed_assessment`. Null scores are valid source values and remain null.
+| Column | Meaning | Additive? |
+|---|---|---|
+| `submission_count` | All submissions | Yes |
+| `scored_submission_count` | Submissions with a non-null score | Yes |
+| `missing_score_count` | Submissions with a null score | Yes |
+| `score_sum` | Sum of non-null scores | Yes |
+| `passed_submission_count` | Scored submissions with score at least 40 | Yes |
+| `dated_submission_count` | Submissions whose assessment has a known due day | Yes |
+| `late_submission_count` | Due-dated submissions after the due day | Yes |
+| `submitting_students` | Distinct learners at module-presentation and assessment-type grain | No |
+| `median_score` | Median at the declared table grain | No |
 
-### `fact_vle_interaction`
-
-One row per student, VLE site, and relative day in one module presentation. It contains direct keys to student, demographics, module presentation, VLE activity, and activity date. Measures are `sum_click` and `interaction_count`.
-
-## Data quality results
+## Data-quality results
 
 | Column | Meaning |
-| --- | --- |
-| `run_id`, `executed_at` | Pipeline execution identity and time |
-| `layer`, `dataset_name`, `column_name` | Location of the evaluated data |
-| `check_name`, `check_type`, `quality_dimension` | Check definition and quality category |
-| `expectation`, `threshold_pct`, `severity`, `check_owner` | Operational rule and accountability |
-| `total_count`, `failed_count`, `passed_count` | Evaluated and affected value counts |
-| `score_pct`, `failure_pct`, `status` | Calculated quality result |
+|---|---|
+| `run_id`, `executed_at` | Validation-suite run identity and time |
+| `layer` | Validation suite: BRONZE, SILVER, GOLD, or ANALYTICS; Accuracy checks use ANALYTICS |
+| `dataset_name`, `column_name` | Evaluated object and field scope |
+| `check_name`, `check_type`, `quality_dimension` | Rule definition and dimension |
+| `expectation`, `threshold_pct`, `severity`, `check_owner` | Contract and accountability |
+| `total_count`, `failed_count`, `passed_count` | Evaluated rule units |
+| `score_pct`, `failure_pct`, `status` | Calculated rule outcome |
 
-## Analytics outputs
-
-| Table | Grain | Purpose |
-| --- | --- | --- |
-| `learner_outcomes` | Module presentation | Enrollment and outcome counts and rates |
-| `student_engagement` | Student enrollment | Active days, activity count, clicks, and activity span |
-| `assessment_performance` | Module presentation and assessment type | Score, pass, and lateness metrics |
-| `at_risk_students` | Student enrollment | Transparent screening signals for review |
+`failed_count` is a count of rule evaluations and is not guaranteed to be a distinct physical row count.

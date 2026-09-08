@@ -1,54 +1,40 @@
-# OULAD Data Quality Pipeline
+# OULAD Data Quality and Analytics Pipeline
 
-A Databricks SQL project that turns the Open University Learning Analytics Dataset into tested Bronze, Silver, and Gold data, conformed star schemas, business metrics, and a persistent data quality dashboard.
-
-## Project goals
-
-- Apply the lecture workflow `SOURCE -> BRONZE/RAW -> SILVER/CLEAN -> GOLD/MART -> DASHBOARD`.
-- Model assessment performance, VLE engagement, and learner outcomes at explicit grains.
-- Conform shared dimensions and avoid dimension-to-dimension or snowball joins in BI.
-- Record data quality results over time with owners, thresholds, severity, and PASS/WARNING/FAIL status.
-- Keep exploratory queries separate from production SQL so new analysis is safe to test.
+A Databricks SQL project that transforms the Open University Learning Analytics Dataset into validated Bronze, Silver, Gold, and Analytics data, two governed dashboards, and persistent data-quality history.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    S[Seven OULAD CSV files] --> B[Bronze or Raw]
-    B --> C[Silver or Clean]
-    C --> G[Gold or Mart stars]
-    G --> A[Analytics]
-    A --> BD[Business dashboard]
-    B --> DQ[Persistent DQ results]
-    C --> DQ
-    G --> DQ
-    A --> DQ
-    DQ --> DD[Data quality dashboard]
+    S[Seven OULAD CSV files] --> B[Bronze]
+    B --> QB[Bronze validation]
+    QB --> C[Silver]
+    C --> QS[Silver validation]
+    QS --> G[Gold fact constellation]
+    G --> QG[Gold validation]
+    QG --> A[Analytics]
+    A --> QA[Analytics validation<br/>including Accuracy reconciliation]
+    QA --> V[Dashboard and Genie views]
+    V --> BD[Business dashboard]
+    V --> DD[Data-quality dashboard]
 ```
 
-| Layer | Default schema | Purpose |
-| --- | --- | --- |
-| Bronze or Raw | `ftw-week-07.01-raw` | Typed source copies, original grain, ingestion metadata |
-| Silver or Clean | `ftw-week-07.02-clean` | Standardized values, valid domains, conformed source relationships |
-| Gold or Mart | `ftw-week-07.03-mart` | BI-ready conformed dimensions and facts |
-| Analytics | `ftw-week-07.04-analytics` | Reusable outcome, engagement, performance, and risk datasets |
-| Data quality | `ftw-week-07.05-data-quality` | Append-only check history and dashboard views |
+Every data layer is followed by validation. Quality results are appended to `ftw-week-07.05-data-quality.dq_check_results`; data tables are deterministic full refreshes for this fixed research snapshot.
 
-## Gold star schema
+## Schemas
 
-The three facts are:
-
-- `fact_student_enrollment`: one student in one module presentation.
-- `fact_assessment_submission`: one student submission for one assessment.
-- `fact_vle_interaction`: one student, VLE site, and relative course day.
-
-The conformed dimensions are `dim_student`, `dim_demographics`, `dim_module_presentation`, `dim_relative_date`, `dim_assessment`, and `dim_vle_activity`. Every relevant dimension key is stored directly on each fact. BI tools never need to join a dimension through another dimension.
-
-See [the dimensional model](docs/data_model.md) for the relationship diagram and grains.
+| Layer | Schema | Purpose |
+|---|---|---|
+| Source | `ftw-week-07.00-source` | Unity Catalog volume containing the seven CSV files |
+| Bronze | `ftw-week-07.01-raw` | Typed source-aligned Delta tables and ingestion metadata |
+| Silver | `ftw-week-07.02-clean` | Standardized values, valid relationships, deliberate VLE consolidation |
+| Gold | `ftw-week-07.03-mart` | Three fact stars with conformed dimensions |
+| Analytics | `ftw-week-07.04-analytics` | Reusable learner, engagement, assessment, and risk datasets |
+| Data quality | `ftw-week-07.05-data-quality` | Append-only checks and dashboard-ready views |
 
 ## Source files
 
-Place these unmodified files in one Unity Catalog volume directory:
+Upload these files without renaming them:
 
 ```text
 assessments.csv
@@ -60,105 +46,93 @@ studentVle.csv
 vle.csv
 ```
 
-The supplied files match the published OULAD snapshot: 22 courses, 206 assessments, 6,364 VLE activities, 32,593 student information rows, 32,593 registrations, 173,912 assessment submissions, and 10,655,280 source VLE interaction rows.
-
-OULAD is available from [OU Analyse](https://research.stem.open.ac.uk/ouanalyse/dataset/) and the archived [Figshare record](https://figshare.com/articles/dataset/OULAD_Open_University_Learning_Analytics_Dataset/5081998) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-
-## Quick start
-
-### 1. Upload the source files
-
-Create a Unity Catalog volume and upload all seven CSV files into one directory. The default expected path is:
+The configured source directory is:
 
 ```text
-/Volumes/ftw-week-07/00-source/cloudfare-r2
+/Volumes/ftw-week-07/00-source/cloudfare-r2/shared/week07
 ```
 
-### 2. Configure the pipeline
+If the location changes, update `source_path` in both `src/00_setup/01_setup.sql` and `src/01_bronze/sql/02_bronze_sources.sql`.
 
-The setup file already matches the catalog, schemas, and volume shown in your workspace:
+## Run the pipeline
 
-```sql
-DECLARE OR REPLACE VARIABLE source_path STRING
-  DEFAULT '/Volumes/ftw-week-07/00-source/cloudfare-r2';
-DECLARE OR REPLACE VARIABLE raw_namespace STRING DEFAULT '`ftw-week-07`.`01-raw`';
-DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
-DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
-DECLARE OR REPLACE VARIABLE analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
-DECLARE OR REPLACE VARIABLE dq_namespace STRING DEFAULT '`ftw-week-07`.`05-data-quality`';
-```
-
-### 3. Run it
-
-Import this repository as a Databricks Git folder and run:
+Import the repository into Databricks and run:
 
 ```text
 notebooks/00_run_full_pipeline.sql
 ```
 
-The runner creates each layer, appends its quality checks, stops on a critical failure, builds analytics tables, and refreshes data quality dashboard views.
+The runner performs setup, all four data layers, every layer gate, Analytics validation with cross-layer Accuracy reconciliation, core DQ views, and governed `genie_*` source views.
 
-For layer development, use the numbered runners in `notebooks/`. Run them in order because each assumes its upstream layer already exists.
+For a multi-task Databricks job, use the dependency order documented in `FINDINGS_AND_UPLOAD_ORDER.md`. Both dashboard refreshes must wait for `00_prepare_genie_sources.sql`.
 
-### 4. Build the dashboards
+## Gold model
 
-Use the datasets and visual layout in `dashboards/README.md`:
+The model is a fact constellation with three declared grains:
 
-- `dashboards/data_quality_dashboard.sql` answers overall health, scores, failures, owners, affected datasets, history, and last checked time.
-- `dashboards/business_dashboard.sql` covers engagement versus performance, withdrawals, course-week activity, demographics, and submission behavior.
+- `fact_student_enrollment`: one learner in one module presentation.
+- `fact_assessment_submission`: one learner submission for one assessment.
+- `fact_vle_interaction`: one learner, VLE site, relative day, and module presentation.
 
-If you later rename the catalog or schemas, update the namespace variables and dashboard SQL identifiers together.
+Shared dimensions are Student, Demographics, Module Presentation, and Relative Date. Assessment and VLE Activity are process-specific dimensions. Five role-playing date views provide unambiguous BI relationships without duplicating the physical date table. See `docs/data_model.md`.
 
-### 5. Add a safe query
+## Data-quality interpretation
 
-Copy `queries/00_query_template.sql`, rename it for the question, and query Gold or Analytics objects. Keep experiments in `queries/`; only reviewed reusable logic belongs in `src/`.
+The dashboard reports:
 
-## Data quality behavior
+- Completeness
+- Timeliness / Volume
+- Validity
+- Accuracy
+- Consistency
+- Uniqueness
 
-Each validation stage appends rows to `ftw-week-07.05-data-quality.dq_check_results`. Checks record the dataset, column, quality dimension, expectation, threshold, severity, owner, evaluated values, failed values, score, and status. Scores are weighted by evaluated value counts rather than averaged equally across checks.
+Accuracy means control-total reconciliation from Silver to Gold to Analytics. It does not mean comparison with external real-world truth.
 
-The pipeline covers nulls, uniqueness, ranges and accepted values, referential integrity, schema rescue, volume, and output reconciliation. The official 173 null scores remain null and are monitored; repeated Bronze VLE rows are preserved and summed to the declared daily Silver grain.
+The official 173 missing assessment scores remain null. They produce one MEDIUM-severity `WARNING` within the one-percent threshold and must not be imputed merely to force PASS.
 
-See [the quality methodology](docs/data_quality_methodology.md) and [validation reference](docs/validation.md).
+Two complementary health metrics are retained:
+
+```text
+weighted DQ score = 100 * sum(passed rule evaluations) / sum(evaluated values)
+check pass rate = 100 * passed checks / total checks
+```
+
+The weighted score must be displayed to three decimals because rounding it to an integer can show 100 while warnings still exist.
+
+## Dashboards and Genie
+
+`oulad-genie-pack/00_prepare_genie_sources.sql` creates the governed sources used by both dashboards and Genie spaces.
+
+- `dashboards/business_dashboard.sql`: accurate KPI and visualization datasets using additive numerators and denominators.
+- `dashboards/data_quality_dashboard.sql`: current suite, dimension, dataset, problem, ownership, volume, and history datasets.
+- `dashboards/BUSINESS_DASHBOARD_REVISION_PROMPT.md`: exact Databricks dashboard changes.
+- `dashboards/DATA_QUALITY_DASHBOARD_REVISION_PROMPT.md`: exact DQ dashboard changes.
+
+After changing a dashboard in Databricks, export it again and replace the matching `.lvdash.json` file in `dashboards/`.
 
 ## Repository structure
 
 ```text
-oulad-dataset/
-├── dashboards/                 # DQ and business dashboard datasets
-├── docs/                       # Architecture, model, dictionary, decisions, conventions
-├── notebooks/                  # Thin Databricks runners
-├── queries/                    # Safe ad-hoc analysis and examples
-├── scripts/                    # Dependency-free repository checks
-├── src/
-│   ├── 00_setup/
-│   ├── 01_bronze/sql/
-│   ├── 02_silver/sql/
-│   ├── 03_gold/sql/
-│   ├── 04_analytics/sql/
-│   └── 05_data_quality/sql/
-└── tests/                      # Persistent checks and pipeline gates
+dashboards/             Dashboard SQL, exports, and revision prompts
+docs/                   Architecture, model, quality, and conventions
+notebooks/              Thin Databricks runners
+oulad-genie-pack/       Governed dashboard and natural-language sources
+queries/                Safe ad-hoc analysis
+scripts/                Repository checks
+src/                    Production transformation and DQ-view SQL
+tests/                  Persistent validation suites and gates
 ```
 
-## Development checks
+## Local checks
 
 ```bash
 python3 scripts/check_repository.py
 python3 -m pip install -r requirements-dev.txt
-sqlfluff lint src tests queries dashboards --dialect databricks
 ```
 
-GitHub Actions runs the same checks on pushes and pull requests. Use a feature branch, test in Databricks, commit the finalized SQL, open a pull request, and merge only after review.
+SQLFluff currently provides parser and development feedback. Do not claim that the repository passes a strict style lint until a project ruleset is committed and existing style findings are resolved.
 
-## Documentation
+## Source and license
 
-- [Architecture](docs/architecture.md)
-- [Data model](docs/data_model.md)
-- [Data dictionary](docs/data_dictionary.md)
-- [Data quality methodology](docs/data_quality_methodology.md)
-- [Naming conventions](docs/naming_conventions.md)
-- [Engineering decisions](docs/decisions.md)
-- [Validation](docs/validation.md)
-- [Lecture alignment](docs/lecture_alignment.md)
-- [Source profile](docs/source_profile.md)
-- [Cost and scalability](docs/cost_and_scalability.md)
+OULAD is published by OU Analyse and archived on Figshare under CC BY 4.0. Preserve source attribution when sharing derived work.

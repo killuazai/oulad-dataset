@@ -1,16 +1,10 @@
-# OULAD Data Model
+# Final OULAD conformed star schema
 
-## Business processes and fact grains
+## Model classification
 
-| Business process | Fact table | Grain | Main measures |
-|---|---|---|---|
-| Enrollment outcome | `fact_student_enrollment` | One student enrolled in one module presentation | Enrollment, outcome indicators, credits, previous attempts |
-| Assessment performance | `fact_assessment_submission` | One student submission for one assessment | Score, pass indicator, submission timing |
-| Learning engagement | `fact_vle_interaction` | One student, VLE site, and relative day in one module presentation | Clicks and student-site-day count |
+The Gold layer is a **fact constellation** containing three stars. The stars share conformed Student, Demographics, Module Presentation, and Relative Date dimensions. Every BI relationship is directly between a dimension and a fact. There are no dimension-to-dimension, fact-to-fact, or snowball relationships.
 
-Each fact table has one declared grain. Measures stored in a fact must be valid at that grain.
-
-## Updated conformed star schema
+## Relationship diagram
 
 ```mermaid
 erDiagram
@@ -34,184 +28,109 @@ erDiagram
     DIM_ACTIVITY_DATE ||--o{ FACT_VLE_INTERACTION : activity_date_key
 ```
 
-Every relationship used by BI is a direct dimension-to-fact relationship. There are no dimension-to-dimension joins and no snowflake navigation.
+The five named date dimensions are role-playing views of one physical conformed table, `dim_relative_date`. OULAD dates are offsets from presentation start; the model does not invent calendar dates.
 
-## Conformed dimensions
+## Fact grains
 
-| Dimension | Grain | Main attributes | Used by |
+| Business process | Fact | Exact grain | Additive measures |
 |---|---|---|---|
-| `dim_student` | One anonymized student | Student identifier | All facts |
-| `dim_demographics` | One distinct demographic profile | Gender, region, education, deprivation band, age band, disability | All facts |
-| `dim_module_presentation` | One module presentation | Module, presentation, year, term, duration | All facts |
-| `dim_assessment` | One assessment | Assessment type, due-day offset, weight | Assessment fact |
-| `dim_vle_activity` | One VLE site in one module presentation | Activity type and availability window | VLE fact |
-| `dim_relative_date` | One relative course day | Relative day, relative week, course phase | Base for all date-role views |
-
-### Student and demographic dimensions
-
-`dim_student` contains stable student identity only. Demographics remain in a separate conformed profile dimension because the OULAD snapshot contains 72 students whose demographic values differ between enrollments.
-
-Each fact derives `demographics_key` from the student profile for the relevant module presentation. BI therefore joins directly from a fact to `dim_demographics`; it does not traverse an enrollment bridge.
-
-### Module-presentation dimension
-
-The module-presentation key uses `(code_module, code_presentation)`. OULAD presentation codes use `B` for February starts and `J` for October starts.
-
-### Assessment dimension
-
-`dim_assessment` uses one globally unique `id_assessment`. It retains module and presentation identifiers for auditability, but facts also carry `module_presentation_key` directly. BI does not need to join from assessment to module dimension.
-
-### VLE activity dimension
-
-`dim_vle_activity` uses `(code_module, code_presentation, id_site)` as its stable natural grain. It describes the VLE material, while engagement measures remain in `fact_vle_interaction`.
-
-## Relative-date roles
-
-OULAD dates are offsets from the beginning of a module presentation, not absolute calendar dates. The model must not invent calendar dates.
-
-The physical mart keeps one conformed table:
-
-```text
-dim_relative_date
-```
-
-The BI layer exposes five role-specific views of that same table:
-
-| BI dimension view | Fact foreign key | Meaning |
-|---|---|---|
-| `dim_registration_date` | `registration_date_key` | Day the student registered relative to presentation start |
-| `dim_unregistration_date` | `unregistration_date_key` | Day the student unregistered relative to presentation start |
-| `dim_submission_date` | `submitted_date_key` | Day an assessment was submitted |
-| `dim_due_date` | `due_date_key` | Assessment due-day offset; may be unknown for exams |
-| `dim_activity_date` | `activity_date_key` | Day of summarized VLE activity |
-
-These views have the same rows, keys, and definitions. Their different names identify their analytical roles and allow BI tools to use clear active relationships.
-
-### SQL for the role-specific views
-
-```sql
-CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_registration_date')
-AS SELECT * FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
-
-CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_unregistration_date')
-AS SELECT * FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
-
-CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_submission_date')
-AS SELECT * FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
-
-CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_due_date')
-AS SELECT * FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
-
-CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_activity_date')
-AS SELECT * FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
-```
-
-The base `dim_relative_date` can remain hidden in the BI semantic model. Report authors use only the role-specific views.
-
-## Fact tables
+| Enrollment outcome | `fact_student_enrollment` | One student enrolled in one module presentation | `enrollment_count`, four mutually exclusive outcome counters, `studied_credits` |
+| Assessment submission | `fact_assessment_submission` | One student submission for one assessment | `submission_count`, scored value totals when aggregated carefully |
+| VLE engagement | `fact_vle_interaction` | One student, VLE site, relative course day, and module presentation | `sum_click`, `student_site_day_count` |
 
 ### `fact_student_enrollment`
 
-Grain: one student in one module presentation.
+Primary key: `student_enrollment_key`.
 
-Dimension keys:
+Foreign keys:
 
-- `student_key`
-- `demographics_key`
-- `module_presentation_key`
-- `registration_date_key`
-- `unregistration_date_key`
+- `student_key` → `dim_student`
+- `demographics_key` → `dim_demographics`
+- `module_presentation_key` → `dim_module_presentation`
+- `registration_date_key` → `dim_registration_date`
+- `unregistration_date_key` → `dim_unregistration_date`
 
-Measures and fact attributes:
-
-- `enrollment_count`
-- `studied_credits`
-- `num_of_prev_attempts`
-- `withdrawn_count`
-- `failed_count`
-- `passed_count`
-- `distinction_count`
-- `final_result`
-- Registration and unregistration relative-day values for audit
-
-The four outcome indicators are mutually exclusive and additive. They allow BI to calculate outcome totals without repeatedly evaluating text values.
+`registration_date_key` and `unregistration_date_key` may be null when the corresponding source offset is unknown. `withdrawn_count`, `failed_count`, `passed_count`, and `distinction_count` must sum to exactly one on every row.
 
 ### `fact_assessment_submission`
 
-Grain: one student submission for one assessment.
+Primary key: `assessment_submission_key`.
 
-Dimension keys:
+Foreign keys:
 
-- `assessment_key`
-- `student_key`
-- `demographics_key`
-- `module_presentation_key`
-- `submitted_date_key`
-- `due_date_key`
+- `assessment_key` → `dim_assessment`
+- `student_key` → `dim_student`
+- `demographics_key` → `dim_demographics`
+- `module_presentation_key` → `dim_module_presentation`
+- `submitted_date_key` → `dim_submission_date`
+- `due_date_key` → `dim_due_date`
 
-Measures and fact attributes:
-
-- `submission_count`
-- `score`
-- `passed_assessment`
-- `days_from_due_date`
-- `is_banked`
-
-Scores below 40 are interpreted as failed assessments in OULAD. An unknown source score remains `NULL`; it must not be replaced with zero.
-
-`days_from_due_date` is calculated as:
-
-```text
-date_submitted - assessment_date
-```
-
-A positive value means the submission was late, a negative value means it was early, and zero means it was submitted on the due day.
+`due_date_key` may be null for exams without a due-day offset. A missing source score remains null. `passed_assessment` is null when score is null; otherwise a score of at least 40 is a pass. `days_from_due_date > 0` means late.
 
 ### `fact_vle_interaction`
 
-Grain: one student, VLE site, and relative day within one module presentation.
+Primary key: `vle_interaction_key`.
 
-Dimension keys:
+Foreign keys:
 
-- `vle_activity_key`
-- `student_key`
-- `demographics_key`
-- `module_presentation_key`
-- `activity_date_key`
+- `vle_activity_key` → `dim_vle_activity`
+- `student_key` → `dim_student`
+- `demographics_key` → `dim_demographics`
+- `module_presentation_key` → `dim_module_presentation`
+- `activity_date_key` → `dim_activity_date`
 
-Measures:
+Silver deliberately consolidates repeated raw learner-site-day rows. `sum_click` preserves their click total, and `student_site_day_count = 1` counts rows at the declared Gold grain.
 
-- `sum_click`: the number of clicks/interactions recorded for the student, site, and day
-- `student_site_day_count`: always `1`; counts rows at the declared fact grain
+## Physical conformed dimensions
 
-Use this SQL in the fact build:
+| Dimension | Grain | Natural identifier or profile | Used by |
+|---|---|---|---|
+| `dim_student` | One anonymized learner | `id_student` | All facts |
+| `dim_demographics` | One distinct demographic profile | Gender, region, education, IMD band, age band, disability | All facts |
+| `dim_module_presentation` | One module presentation | `code_module`, `code_presentation` | All facts |
+| `dim_assessment` | One assessment | `id_assessment` | Assessment fact |
+| `dim_vle_activity` | One VLE site within one module presentation | Module, presentation, `id_site` | VLE fact |
+| `dim_relative_date` | One relative course day | `relative_day` | Source for all date roles |
 
-```sql
-interaction.sum_click,
-1 AS student_site_day_count
+`dim_student` contains identity only. Demographics are separated because the same learner can have different profiles across module presentations. Each fact receives the demographic key from the learner's profile for that specific module presentation.
+
+## Role-playing relative-date views
+
+| BI view | Key exposed to BI | Meaning |
+|---|---|---|
+| `dim_registration_date` | `registration_date_key` | Registration day relative to presentation start |
+| `dim_unregistration_date` | `unregistration_date_key` | Unregistration day relative to presentation start |
+| `dim_submission_date` | `submitted_date_key` | Assessment submission day |
+| `dim_due_date` | `due_date_key` | Assessment due-day offset |
+| `dim_activity_date` | `activity_date_key` | VLE activity day |
+
+These are views, not duplicated physical tables. Their role-specific column names prevent ambiguous BI relationships.
+
+## Measure behavior
+
+### Additive
+
+- Enrollment and outcome counts
+- Submission, scored, missing-score, passed, due-dated, and late counts
+- Score sum
+- VLE click total
+- Student-site-day count
+
+### Recalculate from additive controls
+
+```text
+average assessment score = score_sum / scored_submission_count
+assessment pass rate = passed_submission_count / scored_submission_count
+late submission rate = late_submission_count / dated_submission_count
+successful outcome rate = (passed_students + distinction_students) / enrolled_students
+withdrawal rate = withdrawn_students / enrolled_students
 ```
 
-Do not name the constant measure `interaction_count`, because that could be confused with `sum_click`.
-
-## Key strategy
-
-### Current coursework implementation
-
-The current implementation uses SHA-256 hashes of stable natural keys and demographic profiles. This provides deterministic keys across complete rebuilds and supports reproducible validation.
-
-Natural identifiers remain on dimensions and facts for audit and debugging. Hash generation does not replace uniqueness or referential-integrity tests.
-
-### Optional production optimization
-
-SHA-256 returns a wide string key. Repeating wide keys in a VLE fact with more than 10 million rows costs more storage and join processing than compact numeric keys.
-
-For a production-scale model, consider `BIGINT` surrogate keys or another governed compact-key strategy. Apply that change consistently to every dimension, fact, quality test, and BI relationship. Do not mix incompatible key strategies within the same conformed model.
-
-This optimization is optional. It is not required for the correctness of the coursework model.
+Never average already-aggregated rates. Never sum distinct-student counts across assessment types. Never average group medians and describe the result as an overall median.
 
 ## Expected cardinalities for the supplied snapshot
 
-| Object | Expected rows or distinct members |
+| Object | Expected rows or members |
 |---|---:|
 | `dim_module_presentation` | 22 |
 | `dim_student` | 28,785 |
@@ -220,48 +139,21 @@ This optimization is optional. It is not required for the correctness of the cou
 | `dim_vle_activity` | 6,364 |
 | `fact_student_enrollment` | 32,593 |
 | `fact_assessment_submission` | 173,912 |
-| Bronze `studentVle` source | 10,655,280 |
+| Missing assessment scores | 173 |
+| Bronze `student_vle` rows | 10,655,280 |
 
-The VLE fact row count can equal or be lower than the Bronze source count because the Silver layer consolidates duplicate records to the declared student-site-day grain.
-
-## Required data-quality tests
-
-### Dimension tests
-
-- Every dimension key is non-null and unique.
-- Natural keys match the declared dimension grain.
-- Presentation terms use accepted values.
-- Relative days are unique and cover every non-null fact date key.
-
-### Fact tests
-
-- Every fact primary key is non-null and unique at its declared grain.
-- Every required dimension key has a matching dimension row.
-- Optional unregistration and assessment due-date keys may be null.
-- Assessment scores are null or between 0 and 100.
-- `passed_assessment` is null when score is null.
-- VLE `sum_click` is positive.
-- `student_site_day_count` equals 1.
-- Enrollment outcome indicators sum to 1 for every row.
-
-### Reconciliation tests
-
-- Enrollment fact count equals the clean student-enrollment count.
-- Assessment fact count equals the clean assessment-submission count.
-- VLE fact `sum_click` total equals the clean VLE `sum_click` total.
-- No fact row is multiplied by a dimension join.
+The Gold VLE fact may contain fewer rows than Bronze because Silver consolidates repeated rows. Its total `sum_click` must reconcile exactly from Silver to Gold and into student engagement.
 
 ## BI relationship rules
 
-- Use one-to-many relationships from each dimension to each fact.
-- Use single-direction filtering from dimension to fact.
-- Do not create direct fact-to-fact relationships.
-- Do not join dimensions through other dimensions.
-- Use the role-specific date views instead of multiple ambiguous relationships to one date table.
-- Hide technical hash keys and duplicated audit identifiers from report users.
-- Use fact measures for aggregation and dimension attributes for filtering and grouping.
+- Cardinality: one dimension row to many fact rows.
+- Cross-filter direction: dimension to fact only.
+- Do not relate facts directly.
+- Do not relate dimensions to other dimensions.
+- Use the correct date-role view for each fact key.
+- Hide hash keys and duplicated audit identifiers from dashboard users.
+- Use dimensions for grouping/filtering and additive fact controls for calculations.
 
-## Final assessment
+## Accuracy boundary
 
-The OULAD model is a valid fact constellation containing three stars that share conformed dimensions. The update improves BI usability and measure clarity without changing the correct business grains or introducing snowflake joins.
-
+The model can test **transformation accuracy** by reconciling counts and totals between Silver, Gold, and Analytics. It cannot prove real-world accuracy without an independent authoritative reference. Dashboard wording must retain that distinction.

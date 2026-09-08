@@ -1,49 +1,45 @@
 # Engineering decisions
 
-## Databricks SQL and Delta
+## Databricks SQL, Delta, and Unity Catalog
 
-The reference Instacart project uses Databricks, Delta Lake, and Unity Catalog. This repository keeps that platform so the structure and operating habits transfer directly.
+The project uses the same platform as the reference coursework pipeline. Explicit schemas, Delta tables, and governed schemas keep execution reproducible.
 
-## One configurable catalog and source path
+## Fixed snapshot and full refresh
 
-The setup step declares SQL session variables used by all downstream source-format notebooks. This prevents path and catalog values from being duplicated across transformation files.
+OULAD is a fixed research snapshot. `CREATE OR REPLACE TABLE` is easier to validate than premature incremental logic. Quality results remain append-only for audit and trends.
 
-## Full refresh before incremental complexity
+## Independently runnable files
 
-OULAD is a fixed research snapshot, so `CREATE OR REPLACE TABLE` is easier to reason about and test than incremental merge logic. Incremental processing can be introduced later if the source becomes time-varying.
+Each SQL file declares the namespace variables it requires so it can run independently. The source path must remain identical in Setup and Bronze; tests and documentation enforce the configured location.
 
-## Separate transformation and validation files
+## Validation after every layer
 
-Transformation files create tables; test files persist evidence and decide whether those tables are trustworthy. Runner notebooks always place the test directly after the layer it protects.
+Transformation and validation remain separate. Bronze, Silver, Gold, and Analytics each have a gate. The Analytics gate also verifies cross-layer transformation Accuracy before dashboard sources refresh; Accuracy is not modeled as a fifth pipeline layer.
 
-## Preserve relative dates
+## Relative dates and role-playing views
 
-The dataset expresses dates as offsets from presentation start. Integers preserve the source meaning and avoid fabricated calendar values.
+OULAD dates are offsets from presentation start. One physical `dim_relative_date` is reused through five role-playing views; no calendar date is fabricated.
 
-## Aggregate repeated daily VLE rows in Silver
+## Daily VLE consolidation
 
-The official source contains multiple rows for some learner, VLE site, and day combinations. Bronze preserves and reports those rows. Silver sums their clicks into one conformed daily interaction so the Gold key is stable and unique.
+Bronze preserves repeated learner-site-day records. Silver sums their clicks to one learner-site-day grain. Reconciliation proves that click totals are preserved.
 
-## Deterministic hashed Gold keys
+## Deterministic keys and direct relationships
 
-Compound natural keys are hashed to fixed-width Gold keys. Original identifiers remain on facts and dimensions, which keeps debugging straightforward and makes hashes reproducible.
+SHA-256 keys are reproducible for coursework. Every relevant key is placed directly on each fact, avoiding snowball joins. A production-scale implementation may adopt compact numeric keys if changed consistently everywhere.
 
-## Conformed dimensions without BI snowball joins
+## Separate learner identity and demographics
 
-Student, demographics, module presentation, relative date, assessment, and VLE activity are reusable dimensions. Every fact carries its relevant keys directly. Descriptive dimensions never join to other dimensions in the BI model.
+One learner can have different demographic profiles across module presentations. `dim_student` stores identity; `dim_demographics` stores the profile used for the specific enrollment and is linked directly from every fact.
 
-## Separate student identity and demographics
+## Accurate aggregate measures
 
-The official snapshot contains students whose demographic values differ across enrollments. `dim_student` therefore stores only stable identity, while `dim_demographics` stores a reusable profile. Each fact receives the correct profile from its module-presentation enrollment.
+Counts and sums are published as additive controls. Rates are recalculated from those controls. Distinct counts and medians are explicitly non-additive and are not re-aggregated across groups.
 
-## Persistent quality history
+## Accuracy boundary
 
-Business data is full-refreshed, but `dq_check_results` is append-only. The dashboard uses evaluated-count-weighted scores rather than averaging check percentages, and critical failures are the only checks that block the pipeline.
+Accuracy means Silver-to-Gold and Gold-to-Analytics control-total reconciliation. External truth cannot be established without an authoritative independent source.
 
 ## Transparent risk screening
 
-The at-risk output uses documented rules rather than an opaque model. `final_result` is carried only for retrospective analysis and is not part of the risk score. Thresholds must be calibrated and reviewed for fairness before the table informs learner interventions.
-
-## Keep data outside Git
-
-CSV, Parquet, and Delta files are ignored. The repository contains reproducible logic and documentation, while governed datasets stay in the data platform.
+Risk levels are deterministic coursework rules. `final_result` is retained for retrospective evaluation but does not contribute to risk score. The output is not presented as a trained predictive model.

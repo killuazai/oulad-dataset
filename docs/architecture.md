@@ -4,37 +4,37 @@
 
 ```mermaid
 flowchart LR
-    S[Seven OULAD CSV files] --> B[Bronze or Raw]
-    B --> QB[Persist Bronze DQ]
-    QB --> C[Silver or Clean]
-    C --> QS[Persist Silver DQ]
-    QS --> G[Gold or Mart stars]
-    G --> QG[Persist Gold DQ]
-    QG --> A[Analytics tables]
-    A --> QA[Persist Analytics DQ]
-    QA --> DQ[Data quality dashboard views]
-    A --> BD[Business dashboard]
+    S[Seven CSV files] --> B[Bronze]
+    B --> QB[Bronze DQ]
+    QB --> C[Silver]
+    C --> QS[Silver DQ]
+    QS --> GD[Gold dimensions]
+    QS --> GF[Gold facts]
+    GD --> QG[Gold DQ]
+    GF --> QG
+    QG --> A[Four Analytics tables]
+    A --> QA[Analytics DQ<br/>including Accuracy reconciliation]
+    QA --> DV[Core DQ views]
+    DV --> GV[Governed Genie/dashboard views]
+    GV --> BD[Business dashboard]
+    GV --> DD[DQ dashboard]
 ```
 
-Each layer uses a deterministic full refresh because OULAD is a fixed research snapshot. Quality results are the exception: `dq_check_results` is append-only so the dashboard can show history and drift.
-
-## Layer responsibilities
-
-| Layer | Default schema | Responsibility |
-| --- | --- | --- |
-| Bronze or Raw | `ftw-week-07.01-raw` | Explicit source schemas, original grain, ingestion metadata, rescued fields |
-| Silver or Clean | `ftw-week-07.02-clean` | Standardized values, valid types, parent relationships, deliberate VLE aggregation |
-| Gold or Mart | `ftw-week-07.03-mart` | Conformed dimensions and direct-key facts for BI |
-| Analytics | `ftw-week-07.04-analytics` | Reusable outcomes, engagement, performance, and risk datasets |
-| Data quality | `ftw-week-07.05-data-quality` | Persistent check history and dashboard-ready views |
+OULAD is a fixed research snapshot, so transformation tables use deterministic full refreshes. `dq_check_results` is append-only for audit and trend analysis.
 
 ## Failure boundaries
 
-- Setup fails if the source folder does not contain exactly the seven expected CSV files.
-- Bronze fails on schema rescue, invalid source keys, or invalid required domains.
-- Silver fails on duplicate clean grains or broken source relationships.
-- Gold fails on duplicate dimensional keys, orphaned facts, or reconciliation differences.
-- Analytics fails on duplicate reporting grains or impossible metrics.
-- Noncritical drift remains visible as `WARNING` or `FAIL` in the dashboard without stopping the run.
+- Setup stops when the source directory does not contain exactly the expected seven CSV files.
+- Every transformed layer is followed by a critical gate.
+- Reconciliation stops dashboard refresh when control totals change across layers.
+- Noncritical known conditions remain visible as warnings.
+- Dashboard source views refresh only after all four validation suites succeed; the Analytics suite includes the cross-layer Accuracy gate.
 
-Every production runner executes transformation then validation. This keeps a failed layer from refreshing downstream business outputs.
+## Cost and scalability
+
+- Explicit CSV schemas avoid inference scans.
+- Silver consolidates VLE events once at the required grain.
+- Gold uses deterministic direct keys and avoids snowball joins.
+- Dashboards and Genie query small governed aggregates where possible.
+- Historical DQ queries run only for trend/drill-down use cases.
+- For substantially larger facts, compact numeric surrogate keys can replace SHA-256 strings if changed consistently across dimensions, facts, tests, and BI relationships.
