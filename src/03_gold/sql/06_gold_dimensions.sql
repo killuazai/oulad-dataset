@@ -3,7 +3,7 @@
 -- Purpose: Build conformed dimensions that every BI fact joins to directly.
 -- Grain: One row per business entity represented by each dimension.
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.dim_module_presentation')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_module_presentation')
 USING DELTA
 AS
 SELECT
@@ -18,17 +18,17 @@ SELECT
     ELSE 'Other start'
   END AS presentation_term_name,
   module_presentation_length
-FROM IDENTIFIER(oulad_clean_namespace || '.courses_clean');
+FROM IDENTIFIER(clean_namespace || '.courses_clean');
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.dim_student')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_student')
 USING DELTA
 AS
 SELECT DISTINCT
   SHA2(CAST(id_student AS STRING), 256) AS student_key,
   id_student
-FROM IDENTIFIER(oulad_clean_namespace || '.student_info_clean');
+FROM IDENTIFIER(clean_namespace || '.student_info_clean');
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.dim_demographics')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_demographics')
 USING DELTA
 AS
 SELECT DISTINCT
@@ -50,9 +50,9 @@ SELECT DISTINCT
   imd_band,
   age_band,
   disability
-FROM IDENTIFIER(oulad_clean_namespace || '.student_info_clean');
+FROM IDENTIFIER(clean_namespace || '.student_info_clean');
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.dim_assessment')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_assessment')
 USING DELTA
 AS
 SELECT
@@ -63,9 +63,9 @@ SELECT
   assessment_type,
   assessment_date,
   weight
-FROM IDENTIFIER(oulad_clean_namespace || '.assessments_clean');
+FROM IDENTIFIER(clean_namespace || '.assessments_clean');
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.dim_vle_activity')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_vle_activity')
 USING DELTA
 AS
 SELECT
@@ -79,36 +79,36 @@ SELECT
   activity_type,
   week_from,
   week_to
-FROM IDENTIFIER(oulad_clean_namespace || '.vle_clean');
+FROM IDENTIFIER(clean_namespace || '.vle_clean');
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.dim_relative_date')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_relative_date')
 USING DELTA
 AS
 WITH date_bounds AS (
   SELECT MIN(relative_day) AS minimum_day, MAX(relative_day) AS maximum_day
   FROM (
     SELECT assessment_date AS relative_day
-    FROM IDENTIFIER(oulad_clean_namespace || '.assessments_clean')
+    FROM IDENTIFIER(clean_namespace || '.assessments_clean')
 
     UNION ALL
 
     SELECT date_submitted
-    FROM IDENTIFIER(oulad_clean_namespace || '.student_assessment_clean')
+    FROM IDENTIFIER(clean_namespace || '.student_assessment_clean')
 
     UNION ALL
 
     SELECT activity_date
-    FROM IDENTIFIER(oulad_clean_namespace || '.student_vle_clean')
+    FROM IDENTIFIER(clean_namespace || '.student_vle_clean')
 
     UNION ALL
 
     SELECT date_registration
-    FROM IDENTIFIER(oulad_clean_namespace || '.student_registration_clean')
+    FROM IDENTIFIER(clean_namespace || '.student_registration_clean')
 
     UNION ALL
 
     SELECT date_unregistration
-    FROM IDENTIFIER(oulad_clean_namespace || '.student_registration_clean')
+    FROM IDENTIFIER(clean_namespace || '.student_registration_clean')
   ) AS source_dates
   WHERE relative_day IS NOT NULL
 ),

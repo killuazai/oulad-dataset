@@ -3,21 +3,21 @@
 -- Purpose: Clean source rows, normalize domains, and retain only conformed relationships.
 -- Grain: One clean row at the original grain of each source entity or event.
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_clean_namespace || '.courses_clean')
+CREATE OR REPLACE TABLE IDENTIFIER(clean_namespace || '.courses_clean')
 USING DELTA
 AS
 SELECT
   UPPER(TRIM(code_module)) AS code_module,
   UPPER(TRIM(code_presentation)) AS code_presentation,
   module_presentation_length
-FROM IDENTIFIER(oulad_raw_namespace || '.courses')
+FROM IDENTIFIER(raw_namespace || '.courses')
 WHERE code_module IS NOT NULL
   AND TRIM(code_module) <> ''
   AND code_presentation IS NOT NULL
   AND TRIM(code_presentation) <> ''
   AND module_presentation_length > 0;
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_clean_namespace || '.assessments_clean')
+CREATE OR REPLACE TABLE IDENTIFIER(clean_namespace || '.assessments_clean')
 USING DELTA
 AS
 SELECT
@@ -27,8 +27,8 @@ SELECT
   assessment.assessment_type,
   assessment.assessment_date,
   assessment.weight
-FROM IDENTIFIER(oulad_raw_namespace || '.assessments') AS assessment
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.courses_clean') AS course
+FROM IDENTIFIER(raw_namespace || '.assessments') AS assessment
+INNER JOIN IDENTIFIER(clean_namespace || '.courses_clean') AS course
   ON UPPER(TRIM(assessment.code_module)) = course.code_module
   AND UPPER(TRIM(assessment.code_presentation)) = course.code_presentation
 WHERE assessment.id_assessment IS NOT NULL
@@ -36,7 +36,7 @@ WHERE assessment.id_assessment IS NOT NULL
   AND assessment.weight BETWEEN 0 AND 100
   AND (assessment.assessment_type = 'Exam' OR assessment.assessment_date IS NOT NULL);
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_clean_namespace || '.vle_clean')
+CREATE OR REPLACE TABLE IDENTIFIER(clean_namespace || '.vle_clean')
 USING DELTA
 AS
 SELECT
@@ -46,8 +46,8 @@ SELECT
   LOWER(TRIM(vle.activity_type)) AS activity_type,
   vle.week_from,
   vle.week_to
-FROM IDENTIFIER(oulad_raw_namespace || '.vle') AS vle
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.courses_clean') AS course
+FROM IDENTIFIER(raw_namespace || '.vle') AS vle
+INNER JOIN IDENTIFIER(clean_namespace || '.courses_clean') AS course
   ON UPPER(TRIM(vle.code_module)) = course.code_module
   AND UPPER(TRIM(vle.code_presentation)) = course.code_presentation
 WHERE vle.id_site IS NOT NULL
@@ -59,7 +59,7 @@ WHERE vle.id_site IS NOT NULL
     OR vle.week_from <= vle.week_to
   );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_clean_namespace || '.student_info_clean')
+CREATE OR REPLACE TABLE IDENTIFIER(clean_namespace || '.student_info_clean')
 USING DELTA
 AS
 SELECT
@@ -75,8 +75,8 @@ SELECT
   student.studied_credits,
   student.disability,
   student.final_result
-FROM IDENTIFIER(oulad_raw_namespace || '.student_info') AS student
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.courses_clean') AS course
+FROM IDENTIFIER(raw_namespace || '.student_info') AS student
+INNER JOIN IDENTIFIER(clean_namespace || '.courses_clean') AS course
   ON UPPER(TRIM(student.code_module)) = course.code_module
   AND UPPER(TRIM(student.code_presentation)) = course.code_presentation
 WHERE student.id_student IS NOT NULL
@@ -86,7 +86,7 @@ WHERE student.id_student IS NOT NULL
   AND student.num_of_prev_attempts >= 0
   AND student.studied_credits > 0;
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_clean_namespace || '.student_registration_clean')
+CREATE OR REPLACE TABLE IDENTIFIER(clean_namespace || '.student_registration_clean')
 USING DELTA
 AS
 SELECT
@@ -95,8 +95,8 @@ SELECT
   registration.id_student,
   registration.date_registration,
   registration.date_unregistration
-FROM IDENTIFIER(oulad_raw_namespace || '.student_registration') AS registration
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
+FROM IDENTIFIER(raw_namespace || '.student_registration') AS registration
+INNER JOIN IDENTIFIER(clean_namespace || '.student_info_clean') AS student
   ON UPPER(TRIM(registration.code_module)) = student.code_module
   AND UPPER(TRIM(registration.code_presentation)) = student.code_presentation
   AND registration.id_student = student.id_student
@@ -104,7 +104,7 @@ WHERE registration.date_registration IS NULL
   OR registration.date_unregistration IS NULL
   OR registration.date_registration <= registration.date_unregistration;
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_clean_namespace || '.student_assessment_clean')
+CREATE OR REPLACE TABLE IDENTIFIER(clean_namespace || '.student_assessment_clean')
 USING DELTA
 AS
 SELECT
@@ -113,10 +113,10 @@ SELECT
   submission.date_submitted,
   CAST(submission.is_banked AS BOOLEAN) AS is_banked,
   submission.score
-FROM IDENTIFIER(oulad_raw_namespace || '.student_assessment') AS submission
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.assessments_clean') AS assessment
+FROM IDENTIFIER(raw_namespace || '.student_assessment') AS submission
+INNER JOIN IDENTIFIER(clean_namespace || '.assessments_clean') AS assessment
   ON submission.id_assessment = assessment.id_assessment
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
+INNER JOIN IDENTIFIER(clean_namespace || '.student_info_clean') AS student
   ON assessment.code_module = student.code_module
   AND assessment.code_presentation = student.code_presentation
   AND submission.id_student = student.id_student
@@ -125,7 +125,7 @@ WHERE submission.id_student IS NOT NULL
   AND submission.is_banked IN (0, 1)
   AND (submission.score IS NULL OR submission.score BETWEEN 0 AND 100);
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_clean_namespace || '.student_vle_clean')
+CREATE OR REPLACE TABLE IDENTIFIER(clean_namespace || '.student_vle_clean')
 USING DELTA
 AS
 SELECT
@@ -135,12 +135,12 @@ SELECT
   interaction.id_site,
   interaction.activity_date,
   SUM(interaction.sum_click) AS sum_click
-FROM IDENTIFIER(oulad_raw_namespace || '.student_vle') AS interaction
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
+FROM IDENTIFIER(raw_namespace || '.student_vle') AS interaction
+INNER JOIN IDENTIFIER(clean_namespace || '.student_info_clean') AS student
   ON UPPER(TRIM(interaction.code_module)) = student.code_module
   AND UPPER(TRIM(interaction.code_presentation)) = student.code_presentation
   AND interaction.id_student = student.id_student
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.vle_clean') AS activity
+INNER JOIN IDENTIFIER(clean_namespace || '.vle_clean') AS activity
   ON UPPER(TRIM(interaction.code_module)) = activity.code_module
   AND UPPER(TRIM(interaction.code_presentation)) = activity.code_presentation
   AND interaction.id_site = activity.id_site

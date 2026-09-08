@@ -3,7 +3,7 @@
 -- Purpose: Build enrollment, assessment, and engagement facts with direct conformed-dimension keys.
 -- Grain: One student enrollment, one student-assessment submission, or one student-site-day.
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.fact_student_enrollment')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.fact_student_enrollment')
 USING DELTA
 AS
 SELECT
@@ -38,13 +38,13 @@ SELECT
   CASE WHEN student.final_result = 'Pass' THEN 1 ELSE 0 END AS passed_count,
   CASE WHEN student.final_result = 'Distinction' THEN 1 ELSE 0 END AS distinction_count,
   1 AS enrollment_count
-FROM IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
-LEFT JOIN IDENTIFIER(oulad_clean_namespace || '.student_registration_clean') AS registration
+FROM IDENTIFIER(clean_namespace || '.student_info_clean') AS student
+LEFT JOIN IDENTIFIER(clean_namespace || '.student_registration_clean') AS registration
   ON student.code_module = registration.code_module
   AND student.code_presentation = registration.code_presentation
   AND student.id_student = registration.id_student;
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.fact_assessment_submission')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.fact_assessment_submission')
 USING DELTA
 AS
 SELECT
@@ -77,15 +77,15 @@ SELECT
   CASE WHEN submission.score IS NULL THEN NULL
     WHEN submission.score >= 40 THEN TRUE ELSE FALSE END AS passed_assessment,
   1 AS submission_count
-FROM IDENTIFIER(oulad_clean_namespace || '.student_assessment_clean') AS submission
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.assessments_clean') AS assessment
+FROM IDENTIFIER(clean_namespace || '.student_assessment_clean') AS submission
+INNER JOIN IDENTIFIER(clean_namespace || '.assessments_clean') AS assessment
   ON submission.id_assessment = assessment.id_assessment
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
+INNER JOIN IDENTIFIER(clean_namespace || '.student_info_clean') AS student
   ON assessment.code_module = student.code_module
   AND assessment.code_presentation = student.code_presentation
   AND submission.id_student = student.id_student;
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_mart_namespace || '.fact_vle_interaction')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.fact_vle_interaction')
 USING DELTA
 AS
 SELECT
@@ -118,8 +118,8 @@ SELECT
   interaction.activity_date,
   interaction.sum_click,
   1 AS interaction_count
-FROM IDENTIFIER(oulad_clean_namespace || '.student_vle_clean') AS interaction
-INNER JOIN IDENTIFIER(oulad_clean_namespace || '.student_info_clean') AS student
+FROM IDENTIFIER(clean_namespace || '.student_vle_clean') AS interaction
+INNER JOIN IDENTIFIER(clean_namespace || '.student_info_clean') AS student
   ON interaction.code_module = student.code_module
   AND interaction.code_presentation = student.code_presentation
   AND interaction.id_student = student.id_student;

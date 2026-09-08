@@ -3,7 +3,7 @@
 -- Purpose: Load the seven OULAD CSV files into typed, source-aligned Delta tables.
 -- Grain: The original grain of each source file.
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.courses')
+CREATE OR REPLACE TABLE IDENTIFIER(raw_namespace || '.courses')
 USING DELTA
 AS
 SELECT
@@ -14,7 +14,7 @@ SELECT
   _metadata.file_path AS source_file,
   CURRENT_TIMESTAMP() AS ingested_at
 FROM READ_FILES(
-  oulad_source_path || '/courses.csv',
+  source_path || '/courses.csv',
   format => 'csv',
   header => 'true',
   mode => 'PERMISSIVE',
@@ -22,7 +22,7 @@ FROM READ_FILES(
   schema => 'code_module STRING, code_presentation STRING, module_presentation_length INT'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.assessments')
+CREATE OR REPLACE TABLE IDENTIFIER(raw_namespace || '.assessments')
 USING DELTA
 AS
 SELECT
@@ -36,7 +36,7 @@ SELECT
   _metadata.file_path AS source_file,
   CURRENT_TIMESTAMP() AS ingested_at
 FROM READ_FILES(
-  oulad_source_path || '/assessments.csv',
+  source_path || '/assessments.csv',
   format => 'csv',
   header => 'true',
   mode => 'PERMISSIVE',
@@ -44,7 +44,7 @@ FROM READ_FILES(
   schema => 'id_assessment BIGINT, code_module STRING, code_presentation STRING, assessment_type STRING, date INT, weight DECIMAL(7, 3)'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.vle')
+CREATE OR REPLACE TABLE IDENTIFIER(raw_namespace || '.vle')
 USING DELTA
 AS
 SELECT
@@ -58,7 +58,7 @@ SELECT
   _metadata.file_path AS source_file,
   CURRENT_TIMESTAMP() AS ingested_at
 FROM READ_FILES(
-  oulad_source_path || '/vle.csv',
+  source_path || '/vle.csv',
   format => 'csv',
   header => 'true',
   mode => 'PERMISSIVE',
@@ -66,7 +66,7 @@ FROM READ_FILES(
   schema => 'id_site BIGINT, code_module STRING, code_presentation STRING, activity_type STRING, week_from INT, week_to INT'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.student_info')
+CREATE OR REPLACE TABLE IDENTIFIER(raw_namespace || '.student_info')
 USING DELTA
 AS
 SELECT
@@ -86,7 +86,7 @@ SELECT
   _metadata.file_path AS source_file,
   CURRENT_TIMESTAMP() AS ingested_at
 FROM READ_FILES(
-  oulad_source_path || '/studentInfo.csv',
+  source_path || '/studentInfo.csv',
   format => 'csv',
   header => 'true',
   mode => 'PERMISSIVE',
@@ -94,7 +94,7 @@ FROM READ_FILES(
   schema => 'code_module STRING, code_presentation STRING, id_student BIGINT, gender STRING, region STRING, highest_education STRING, imd_band STRING, age_band STRING, num_of_prev_attempts INT, studied_credits INT, disability STRING, final_result STRING'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.student_registration')
+CREATE OR REPLACE TABLE IDENTIFIER(raw_namespace || '.student_registration')
 USING DELTA
 AS
 SELECT
@@ -107,7 +107,7 @@ SELECT
   _metadata.file_path AS source_file,
   CURRENT_TIMESTAMP() AS ingested_at
 FROM READ_FILES(
-  oulad_source_path || '/studentRegistration.csv',
+  source_path || '/studentRegistration.csv',
   format => 'csv',
   header => 'true',
   mode => 'PERMISSIVE',
@@ -115,7 +115,7 @@ FROM READ_FILES(
   schema => 'code_module STRING, code_presentation STRING, id_student BIGINT, date_registration INT, date_unregistration INT'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.student_assessment')
+CREATE OR REPLACE TABLE IDENTIFIER(raw_namespace || '.student_assessment')
 USING DELTA
 AS
 SELECT
@@ -128,7 +128,7 @@ SELECT
   _metadata.file_path AS source_file,
   CURRENT_TIMESTAMP() AS ingested_at
 FROM READ_FILES(
-  oulad_source_path || '/studentAssessment.csv',
+  source_path || '/studentAssessment.csv',
   format => 'csv',
   header => 'true',
   mode => 'PERMISSIVE',
@@ -136,7 +136,7 @@ FROM READ_FILES(
   schema => 'id_assessment BIGINT, id_student BIGINT, date_submitted INT, is_banked INT, score DECIMAL(7, 3)'
 );
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_raw_namespace || '.student_vle')
+CREATE OR REPLACE TABLE IDENTIFIER(raw_namespace || '.student_vle')
 USING DELTA
 AS
 SELECT
@@ -150,7 +150,7 @@ SELECT
   _metadata.file_path AS source_file,
   CURRENT_TIMESTAMP() AS ingested_at
 FROM READ_FILES(
-  oulad_source_path || '/studentVle.csv',
+  source_path || '/studentVle.csv',
   format => 'csv',
   header => 'true',
   mode => 'PERMISSIVE',

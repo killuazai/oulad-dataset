@@ -79,13 +79,13 @@ Create a Unity Catalog volume and upload all seven CSV files into one directory.
 The setup file already matches the catalog, schemas, and volume shown in your workspace:
 
 ```sql
-DECLARE OR REPLACE VARIABLE oulad_source_path STRING
+DECLARE OR REPLACE VARIABLE source_path STRING
   DEFAULT '/Volumes/ftw-week-07/00-source/cloudfare-r2';
-DECLARE OR REPLACE VARIABLE oulad_raw_namespace STRING DEFAULT '`ftw-week-07`.`01-raw`';
-DECLARE OR REPLACE VARIABLE oulad_clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
-DECLARE OR REPLACE VARIABLE oulad_mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
-DECLARE OR REPLACE VARIABLE oulad_analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
-DECLARE OR REPLACE VARIABLE oulad_dq_namespace STRING DEFAULT '`ftw-week-07`.`05-data-quality`';
+DECLARE OR REPLACE VARIABLE raw_namespace STRING DEFAULT '`ftw-week-07`.`01-raw`';
+DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
+DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
+DECLARE OR REPLACE VARIABLE analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
+DECLARE OR REPLACE VARIABLE dq_namespace STRING DEFAULT '`ftw-week-07`.`05-data-quality`';
 ```
 
 ### 3. Run it

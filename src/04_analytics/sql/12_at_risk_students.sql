@@ -6,7 +6,7 @@
 --             1 point for fewer than 25 clicks, average score from 40 to below 50,
 --             or registration after presentation day zero. High >= 4, Medium >= 2.
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_analytics_namespace || '.at_risk_students')
+CREATE OR REPLACE TABLE IDENTIFIER(analytics_namespace || '.at_risk_students')
 USING DELTA
 AS
 WITH assessment_signals AS (
@@ -16,7 +16,7 @@ WITH assessment_signals AS (
     COUNT(*) AS submission_count,
     AVG(score) AS average_score,
     COUNT_IF(days_from_due_date > 0) AS late_submission_count
-  FROM IDENTIFIER(oulad_mart_namespace || '.fact_assessment_submission')
+  FROM IDENTIFIER(mart_namespace || '.fact_assessment_submission')
   GROUP BY
     module_presentation_key,
     student_key
@@ -48,8 +48,8 @@ signals AS (
         ELSE 0
       END
       + CASE WHEN enrollment.date_registration > 0 THEN 1 ELSE 0 END AS risk_score
-  FROM IDENTIFIER(oulad_mart_namespace || '.fact_student_enrollment') AS enrollment
-  INNER JOIN IDENTIFIER(oulad_analytics_namespace || '.student_engagement') AS engagement
+  FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment') AS enrollment
+  INNER JOIN IDENTIFIER(analytics_namespace || '.student_engagement') AS engagement
     ON enrollment.student_enrollment_key = engagement.student_enrollment_key
   LEFT JOIN assessment_signals AS assessment
     ON enrollment.module_presentation_key = assessment.module_presentation_key

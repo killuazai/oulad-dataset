@@ -3,7 +3,7 @@
 -- Purpose: Summarize submissions and scores by course presentation and assessment type.
 -- Grain: One row per course presentation and assessment type.
 
-CREATE OR REPLACE TABLE IDENTIFIER(oulad_analytics_namespace || '.assessment_performance')
+CREATE OR REPLACE TABLE IDENTIFIER(analytics_namespace || '.assessment_performance')
 USING DELTA
 AS
 SELECT
@@ -30,8 +30,8 @@ SELECT
       ELSE 0.0
     END
   ) AS late_submission_rate
-FROM IDENTIFIER(oulad_mart_namespace || '.fact_assessment_submission') AS submission
-INNER JOIN IDENTIFIER(oulad_mart_namespace || '.dim_assessment') AS assessment
+FROM IDENTIFIER(mart_namespace || '.fact_assessment_submission') AS submission
+INNER JOIN IDENTIFIER(mart_namespace || '.dim_assessment') AS assessment
   ON submission.assessment_key = assessment.assessment_key
 GROUP BY
   submission.module_presentation_key,

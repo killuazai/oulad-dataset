@@ -3,7 +3,7 @@
 -- Purpose: Persist mart-level grain and conformed-dimension checks and enforce critical gates.
 -- Grain: One row per data quality check and pipeline run.
 
-INSERT INTO IDENTIFIER(oulad_dq_namespace || '.dq_check_results')
+INSERT INTO IDENTIFIER(dq_namespace || '.dq_check_results')
 WITH checks AS (
   SELECT
     'dim_module_presentation' AS dataset_name, 'module_presentation_key' AS column_name,
@@ -14,7 +14,7 @@ WITH checks AS (
     'data_engineering' AS check_owner, COUNT(*) AS total_count,
     COUNT_IF(module_presentation_key IS NULL)
       + COUNT(*) - COUNT(DISTINCT module_presentation_key) AS failed_count
-  FROM IDENTIFIER(oulad_mart_namespace || '.dim_module_presentation')
+  FROM IDENTIFIER(mart_namespace || '.dim_module_presentation')
 
   UNION ALL
 
@@ -23,7 +23,7 @@ WITH checks AS (
     'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per student',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(student_key IS NULL) + COUNT(*) - COUNT(DISTINCT student_key)
-  FROM IDENTIFIER(oulad_mart_namespace || '.dim_student')
+  FROM IDENTIFIER(mart_namespace || '.dim_student')
 
   UNION ALL
 
@@ -32,7 +32,7 @@ WITH checks AS (
     'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per demographic profile',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(demographics_key IS NULL) + COUNT(*) - COUNT(DISTINCT demographics_key)
-  FROM IDENTIFIER(oulad_mart_namespace || '.dim_demographics')
+  FROM IDENTIFIER(mart_namespace || '.dim_demographics')
 
   UNION ALL
 
@@ -41,7 +41,7 @@ WITH checks AS (
     'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per assessment',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(assessment_key IS NULL) + COUNT(*) - COUNT(DISTINCT assessment_key)
-  FROM IDENTIFIER(oulad_mart_namespace || '.dim_assessment')
+  FROM IDENTIFIER(mart_namespace || '.dim_assessment')
 
   UNION ALL
 
@@ -50,7 +50,7 @@ WITH checks AS (
     'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per VLE activity in a module presentation',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(vle_activity_key IS NULL) + COUNT(*) - COUNT(DISTINCT vle_activity_key)
-  FROM IDENTIFIER(oulad_mart_namespace || '.dim_vle_activity')
+  FROM IDENTIFIER(mart_namespace || '.dim_vle_activity')
 
   UNION ALL
 
@@ -59,7 +59,7 @@ WITH checks AS (
     'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per relative course day',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(relative_date_key IS NULL) + COUNT(*) - COUNT(DISTINCT relative_date_key)
-  FROM IDENTIFIER(oulad_mart_namespace || '.dim_relative_date')
+  FROM IDENTIFIER(mart_namespace || '.dim_relative_date')
 
   UNION ALL
 
@@ -73,16 +73,16 @@ WITH checks AS (
       OR (fact.registration_date_key IS NOT NULL AND registration_date.relative_date_key IS NULL)
       OR (fact.unregistration_date_key IS NOT NULL AND unregistration_date.relative_date_key IS NULL)
     ) + COUNT(*) - COUNT(DISTINCT fact.student_enrollment_key)
-  FROM IDENTIFIER(oulad_mart_namespace || '.fact_student_enrollment') AS fact
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_student') AS student
+  FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment') AS fact
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
     ON fact.student_key = student.student_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_module_presentation') AS module
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
     ON fact.module_presentation_key = module.module_presentation_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_demographics') AS demo
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demo
     ON fact.demographics_key = demo.demographics_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_relative_date') AS registration_date
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS registration_date
     ON fact.registration_date_key = registration_date.relative_date_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_relative_date') AS unregistration_date
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS unregistration_date
     ON fact.unregistration_date_key = unregistration_date.relative_date_key
 
   UNION ALL
@@ -99,18 +99,18 @@ WITH checks AS (
       OR (fact.due_date_key IS NOT NULL AND due_date.relative_date_key IS NULL)
       OR fact.score < 0 OR fact.score > 100
     ) + COUNT(*) - COUNT(DISTINCT fact.assessment_submission_key)
-  FROM IDENTIFIER(oulad_mart_namespace || '.fact_assessment_submission') AS fact
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_assessment') AS assessment
+  FROM IDENTIFIER(mart_namespace || '.fact_assessment_submission') AS fact
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_assessment') AS assessment
     ON fact.assessment_key = assessment.assessment_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_student') AS student
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
     ON fact.student_key = student.student_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_module_presentation') AS module
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
     ON fact.module_presentation_key = module.module_presentation_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_demographics') AS demo
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demo
     ON fact.demographics_key = demo.demographics_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_relative_date') AS submitted_date
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS submitted_date
     ON fact.submitted_date_key = submitted_date.relative_date_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_relative_date') AS due_date
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS due_date
     ON fact.due_date_key = due_date.relative_date_key
 
   UNION ALL
@@ -125,16 +125,16 @@ WITH checks AS (
       OR module.module_presentation_key IS NULL OR demo.demographics_key IS NULL
       OR activity_date.relative_date_key IS NULL OR fact.sum_click <= 0
     ) + COUNT(*) - COUNT(DISTINCT fact.vle_interaction_key)
-  FROM IDENTIFIER(oulad_mart_namespace || '.fact_vle_interaction') AS fact
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_vle_activity') AS activity
+  FROM IDENTIFIER(mart_namespace || '.fact_vle_interaction') AS fact
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_vle_activity') AS activity
     ON fact.vle_activity_key = activity.vle_activity_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_student') AS student
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
     ON fact.student_key = student.student_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_module_presentation') AS module
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
     ON fact.module_presentation_key = module.module_presentation_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_demographics') AS demo
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demo
     ON fact.demographics_key = demo.demographics_key
-  LEFT JOIN IDENTIFIER(oulad_mart_namespace || '.dim_relative_date') AS activity_date
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS activity_date
     ON fact.activity_date_key = activity_date.relative_date_key
 
   UNION ALL
@@ -143,10 +143,10 @@ WITH checks AS (
     'fact_student_enrollment', 'row_count', 'Gold enrollments reconcile with Silver',
     'CONSISTENCY', 'VOLUME_RECONCILIATION', 'Gold enrollment count equals clean student enrollment count',
     0, 'CRITICAL', 'data_engineering',
-    (SELECT COUNT(*) FROM IDENTIFIER(oulad_clean_namespace || '.student_info_clean')),
+    (SELECT COUNT(*) FROM IDENTIFIER(clean_namespace || '.student_info_clean')),
     ABS(
-      (SELECT COUNT(*) FROM IDENTIFIER(oulad_mart_namespace || '.fact_student_enrollment'))
-      - (SELECT COUNT(*) FROM IDENTIFIER(oulad_clean_namespace || '.student_info_clean'))
+      (SELECT COUNT(*) FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment'))
+      - (SELECT COUNT(*) FROM IDENTIFIER(clean_namespace || '.student_info_clean'))
     )
 ),
 scored AS (
@@ -180,6 +180,6 @@ SELECT
     COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') OVER () = 0,
     'critical Gold data quality check failed; inspect 05-data-quality.dq_check_results'
   ) AS gold_quality_gate
-FROM IDENTIFIER(oulad_dq_namespace || '.dq_check_results')
+FROM IDENTIFIER(dq_namespace || '.dq_check_results')
 WHERE run_id = dq_run_id AND layer = 'GOLD'
 ORDER BY dataset_name, check_name;
