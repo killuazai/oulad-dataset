@@ -3,6 +3,10 @@
 -- Purpose: Build conformed dimensions that every BI fact joins to directly.
 -- Grain: One row per business entity represented by each dimension.
 
+-- Explanation: Declare variables needed from the setup notebook.
+DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
+DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
+
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_module_presentation')
 USING DELTA
 AS

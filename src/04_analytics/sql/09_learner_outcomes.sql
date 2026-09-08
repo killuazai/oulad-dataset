@@ -3,6 +3,10 @@
 -- Purpose: Summarize enrollment and completion outcomes by course presentation.
 -- Grain: One row per course presentation.
 
+-- Explanation: Declare variables needed from the setup notebook.
+DECLARE OR REPLACE VARIABLE analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
+DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
+
 CREATE OR REPLACE TABLE IDENTIFIER(analytics_namespace || '.learner_outcomes')
 USING DELTA
 AS

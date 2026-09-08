@@ -2,6 +2,12 @@
 -- Name: 07 - Gold Facts
 -- Purpose: Build enrollment, assessment, and engagement facts with direct conformed-dimension keys.
 -- Grain: One student enrollment, one student-assessment submission, or one student-site-day.
+-- Explanation: Required when this notebook runs independently.
+DECLARE OR REPLACE VARIABLE clean_namespace STRING
+  DEFAULT '`ftw-week-07`.`02-clean`';
+
+DECLARE OR REPLACE VARIABLE mart_namespace STRING
+  DEFAULT '`ftw-week-07`.`03-mart`';
 
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.fact_student_enrollment')
 USING DELTA
@@ -116,8 +122,10 @@ SELECT
   interaction.id_student,
   interaction.id_site,
   interaction.activity_date,
+  -- sum_click is the actual number of recorded clicks.
   interaction.sum_click,
-  1 AS interaction_count
+  -- One row represents one student-site-day at the declared fact grain.
+  1 AS student_site_day_count
 FROM IDENTIFIER(clean_namespace || '.student_vle_clean') AS interaction
 INNER JOIN IDENTIFIER(clean_namespace || '.student_info_clean') AS student
   ON interaction.code_module = student.code_module

@@ -2,6 +2,8 @@
 -- Name: 11 - Assessment Performance
 -- Purpose: Summarize submissions and scores by course presentation and assessment type.
 -- Grain: One row per course presentation and assessment type.
+DECLARE OR REPLACE VARIABLE analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
+DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
 
 CREATE OR REPLACE TABLE IDENTIFIER(analytics_namespace || '.assessment_performance')
 USING DELTA

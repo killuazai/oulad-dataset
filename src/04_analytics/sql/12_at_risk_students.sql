@@ -5,6 +5,8 @@
 -- Thresholds: 2 points for no VLE use, no submissions, or average score below 40;
 --             1 point for fewer than 25 clicks, average score from 40 to below 50,
 --             or registration after presentation day zero. High >= 4, Medium >= 2.
+DECLARE OR REPLACE VARIABLE analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
+DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
 
 CREATE OR REPLACE TABLE IDENTIFIER(analytics_namespace || '.at_risk_students')
 USING DELTA

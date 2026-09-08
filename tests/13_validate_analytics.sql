@@ -3,6 +3,13 @@
 -- Purpose: Persist reporting-level DQ results and stop on broken dashboard datasets.
 -- Grain: One row per data quality check and pipeline run.
 
+-- Explanation: Declare variables needed from the setup notebook.
+DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
+DECLARE OR REPLACE VARIABLE analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
+DECLARE OR REPLACE VARIABLE dq_namespace STRING DEFAULT '`ftw-week-07`.`05-data-quality`';
+DECLARE OR REPLACE VARIABLE dq_run_id STRING DEFAULT UUID();
+DECLARE OR REPLACE VARIABLE dq_executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP();
+
 INSERT INTO IDENTIFIER(dq_namespace || '.dq_check_results')
 WITH checks AS (
   SELECT

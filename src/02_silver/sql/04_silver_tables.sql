@@ -3,6 +3,11 @@
 -- Purpose: Clean source rows, normalize domains, and retain only conformed relationships.
 -- Grain: One clean row at the original grain of each source entity or event.
 
+-- Explanation: Declare variables needed from the setup notebook.
+-- These must be defined here if the setup notebook hasn't been run in this session.
+DECLARE OR REPLACE VARIABLE raw_namespace STRING DEFAULT '`ftw-week-07`.`01-raw`';
+DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
+
 CREATE OR REPLACE TABLE IDENTIFIER(clean_namespace || '.courses_clean')
 USING DELTA
 AS
