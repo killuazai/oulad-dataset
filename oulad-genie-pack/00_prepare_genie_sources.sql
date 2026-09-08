@@ -26,7 +26,7 @@ SELECT
     SUM(interaction.sum_click) AS total_clicks,
     COUNT(DISTINCT interaction.student_key) AS active_students,
     SUM(interaction.student_site_day_count) AS student_site_days,
-    COUNT(DISTINCT interaction.site_key) AS activities_used,
+    COUNT(DISTINCT interaction.id_site) AS activities_used,
     ROUND(
         SUM(interaction.sum_click) / NULLIF(COUNT(DISTINCT interaction.student_key), 0),
         2
@@ -56,7 +56,7 @@ SELECT
         4
     ) AS successful_outcome_rate,
     ROUND(AVG(enrollment.studied_credits), 2) AS average_studied_credits,
-    ROUND(AVG(enrollment.previous_attempts), 2) AS average_previous_attempts
+    ROUND(AVG(enrollment.num_of_prev_attempts), 2) AS average_previous_attempts
 FROM `ftw-week-07`.`03-mart`.`fact_student_enrollment` AS enrollment
 INNER JOIN `ftw-week-07`.`03-mart`.`dim_demographics` AS demographic
     ON enrollment.demographics_key = demographic.demographics_key
