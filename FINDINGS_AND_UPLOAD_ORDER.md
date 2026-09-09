@@ -1,79 +1,36 @@
-# OULAD repository alignment review and revision
+# Final alignment findings and upload order
 
-Reviewed GitHub revision: `ff8990fa08624824793d1ee3b50e97303a2f1a15`.
+## Findings
 
-## Final assessment
+The previous repository was internally consistent but did not match the
+professor's explicit dimensional-model scope. It had three Gold facts, six
+physical dimensions, no dbt project, and Databricks dashboards instead of a
+Metabase implementation pack.
 
-The Bronze, Silver, Gold, and Analytics data flow is structurally sound. The Gold model is a valid fact constellation with three facts sharing conformed dimensions and direct fact-to-dimension relationships. Student identity remains separate from the conformed demographic profile mini-dimension because some learners have more than one source profile. The 173 missing assessment scores are a legitimate source condition and must remain a non-blocking `WARNING`.
+This revision corrects those gaps:
 
-The repository was not fully reproducible because the dashboards read `genie_*` views that were not called by the full pipeline. The original latest-results view also selected one global validator run even though each validation suite creates its own run ID. Accuracy was listed but not measured, several documentation claims did not match the SQL, and some business-dashboard rates used incorrect aggregation denominators.
+1. The core mart now has exactly two facts and five dimensions.
+2. Course and Module Presentation are separated at their correct grains.
+3. Assessment and VLE descriptors move into their required facts.
+4. Enrollment becomes the supporting Analytics `student_cohort`, not a Gold fact.
+5. Both facts connect directly to Student, Course, Module Presentation, Date,
+   and Demographics.
+6. The two assessment date keys both reference the same `dim_date` primary key.
+7. A complete dbt mart and relationship tests are included.
+8. A Metabase query and dashboard build pack is included.
+9. Databricks SQL, Analytics, DQ, and Genie references now use the new names.
+10. Accuracy remains consolidated in Analytics validation.
 
-## Findings resolved by this pack
+## Recommended upload and run order
 
-1. Consolidated Silver-to-Gold and Gold-to-Analytics control-total Accuracy checks into `tests/13_validate_analytics.sql`.
-2. Updated the full runner so Analytics validation, including Accuracy, executes before dashboard views and `00_prepare_genie_sources.sql` is always refreshed.
-3. Updated the core DQ views to select the latest run separately for every validation suite.
-4. Added additive assessment counters so pass rate, average score, and late-submission rate can be aggregated correctly.
-5. Added five role-playing date views while retaining one physical conformed `dim_relative_date` table.
-6. Replaced the dashboard SQL reference queries with versions matching the current dashboard design.
-7. Added exact dashboard revision prompts for changes that must be applied in the Databricks dashboard editor and re-exported.
-8. Updated the final star-schema documentation and the repository README.
-9. Kept `dim_student` and `dim_demographics` separate; clarified that the demographic surrogate key does not by itself implement SCD Type 2.
-10. Added informational Gold primary/foreign keys so Catalog Explorer can display **View relationships** for each fact table.
-11. Standardized the diagram and SQL names around each table's declared grain and clarified that the five date-role views represent one physical dimension.
+1. Replace repository files with this revision.
+2. Run Setup, Bronze, Bronze Validation, Silver, and Silver Validation.
+3. Run `src/03_gold/sql/05_reset_gold_model.sql` once to remove the old Gold model.
+4. Configure `profiles.yml` from `profiles.yml.example`.
+5. Run `dbt build --select path:models/mart`.
+6. Run `notebooks/06_run_after_dbt.sql`.
+7. Build the Metabase dashboard from `metabase/dashboard_queries.sql`.
+8. Run `python3 scripts/check_repository.py` locally before opening the PR.
 
-## Upload instructions
-
-Upload the contents of this folder into the repository root, preserving the relative paths. Files with the same path must replace the existing versions. Accuracy does not require a separate validator file or task.
-
-After uploading:
-
-1. Run `notebooks/00_run_full_pipeline.sql`.
-2. Confirm four current validation suites: `BRONZE`, `SILVER`, `GOLD`, and `ANALYTICS`.
-3. Confirm `ACCURACY` appears in `genie_dq_canonical_dimensions` with `MEASURED` status.
-4. Paste `dashboards/DATA_QUALITY_DASHBOARD_REVISION_PROMPT.md` into the Databricks dashboard assistant.
-5. Paste `dashboards/BUSINESS_DASHBOARD_REVISION_PROMPT.md` into the business dashboard assistant.
-6. Re-export both `.lvdash.json` files and replace the older exports in `dashboards/`.
-
-## Required Databricks job order
-
-```text
-Setup
-  -> Bronze -> Bronze Validation -> Silver -> Silver Validation
-  -> Gold Dimensions + Gold Facts -> Gold Validation
-  -> Learner Outcomes + Assessment Performance + Student Engagement + At-Risk Students
-  -> Analytics Validation (after all four Analytics outputs; includes Accuracy)
-  -> Business Analytics Dashboard
-
-Bronze Validation + Silver Validation + Gold Validation + Analytics Validation
-  -> Data Quality Dashboard
-```
-
-All four Analytics tasks depend directly on Gold Validation and can run in parallel. `At-Risk Students` calculates its required engagement and assessment signals directly from validated Gold facts. Analytics Validation must wait for all four Analytics tables. The Business Analytics Dashboard depends directly only on Analytics Validation. The Data Quality Dashboard depends directly only on Bronze Validation, Silver Validation, Gold Validation, and Analytics Validation.
-
-## Acceptance checks
-
-```sql
-SELECT layer, COUNT(*) AS checks
-FROM `ftw-week-07`.`05-data-quality`.genie_latest_check_results
-GROUP BY layer
-ORDER BY layer;
-
-SELECT dimension_key, measurement_status, weighted_quality_score_pct
-FROM `ftw-week-07`.`05-data-quality`.genie_dq_canonical_dimensions
-ORDER BY dimension_order;
-
-SELECT
-  SUM(submission_count) AS submissions,
-  SUM(scored_submission_count) AS scored_submissions,
-  SUM(missing_score_count) AS missing_scores,
-  SUM(dated_submission_count) AS dated_submissions,
-  SUM(late_submission_count) AS late_submissions,
-  100.0 * SUM(passed_submission_count) / NULLIF(SUM(scored_submission_count), 0)
-    AS correct_pass_rate_pct,
-  100.0 * SUM(late_submission_count) / NULLIF(SUM(dated_submission_count), 0)
-    AS correct_late_submission_rate_pct
-FROM `ftw-week-07`.`04-analytics`.assessment_performance;
-```
-
-For the supplied OULAD snapshot, expected assessment control values include 173,912 submissions, 173 missing scores, 173,739 scored submissions, and 171,047 submissions with a known due date.
+The Databricks-only full runner is preserved for demonstration, but the dbt path
+is the submission-aligned implementation.

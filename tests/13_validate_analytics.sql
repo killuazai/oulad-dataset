@@ -1,6 +1,6 @@
 -- Databricks notebook source
 -- Name: 13 - Analytics Validation
--- Purpose: Validate Analytics outputs, including cross-layer transformation Accuracy.
+-- Purpose: Validate reporting outputs and consolidate cross-layer Accuracy controls.
 -- Grain: One row per data-quality check and validation-suite run.
 
 DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
@@ -11,7 +11,7 @@ DECLARE OR REPLACE VARIABLE dq_run_id STRING DEFAULT UUID();
 DECLARE OR REPLACE VARIABLE dq_executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP();
 
 INSERT INTO IDENTIFIER(dq_namespace || '.dq_check_results')
-WITH silver_enrollment AS (
+WITH silver_cohort AS (
   SELECT
     COUNT(*) AS row_count,
     SUM(studied_credits) AS studied_credits,
@@ -21,7 +21,7 @@ WITH silver_enrollment AS (
     COUNT_IF(final_result = 'Distinction') AS distinction_count
   FROM IDENTIFIER(clean_namespace || '.student_info_clean')
 ),
-gold_enrollment AS (
+analytics_cohort AS (
   SELECT
     COUNT(*) AS row_count,
     SUM(studied_credits) AS studied_credits,
@@ -29,7 +29,7 @@ gold_enrollment AS (
     SUM(failed_count) AS failed_count,
     SUM(passed_count) AS passed_count,
     SUM(distinction_count) AS distinction_count
-  FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment')
+  FROM IDENTIFIER(analytics_namespace || '.student_cohort')
 ),
 silver_assessment AS (
   SELECT
@@ -45,7 +45,7 @@ gold_assessment AS (
     COUNT_IF(score IS NOT NULL) AS scored_count,
     COUNT_IF(score IS NULL) AS missing_score_count,
     SUM(COALESCE(score, 0)) AS score_sum
-  FROM IDENTIFIER(mart_namespace || '.fact_assessment_submission')
+  FROM IDENTIFIER(mart_namespace || '.fact_assessments')
 ),
 silver_vle AS (
   SELECT COUNT(*) AS row_count, SUM(sum_click) AS click_sum
@@ -53,7 +53,7 @@ silver_vle AS (
 ),
 gold_vle AS (
   SELECT COUNT(*) AS row_count, SUM(sum_click) AS click_sum
-  FROM IDENTIFIER(mart_namespace || '.fact_vle_interaction')
+  FROM IDENTIFIER(mart_namespace || '.fact_vle_interactions')
 ),
 analytics_outcomes AS (
   SELECT
@@ -65,7 +65,7 @@ analytics_outcomes AS (
   FROM IDENTIFIER(analytics_namespace || '.learner_outcomes')
 ),
 analytics_engagement AS (
-  SELECT COUNT(*) AS enrollment_count, SUM(total_clicks) AS click_sum
+  SELECT COUNT(*) AS cohort_count, SUM(total_clicks) AS click_sum
   FROM IDENTIFIER(analytics_namespace || '.student_engagement')
 ),
 analytics_assessment AS (
@@ -83,7 +83,8 @@ checks AS (
     'learner outcome metrics are complete and bounded' AS check_name,
     'VALIDITY' AS quality_dimension,
     'UNIQUE_RANGE_RECONCILIATION' AS check_type,
-    'One row per module presentation; outcome totals equal enrollments; rates are 0 to 1' AS expectation,
+    'One row per presentation; outcomes equal enrollments; rates are between zero and one'
+      AS expectation,
     CAST(0 AS DECIMAL(7, 3)) AS threshold_pct,
     'CRITICAL' AS severity,
     'analytics' AS check_owner,
@@ -101,22 +102,17 @@ checks AS (
   UNION ALL
 
   SELECT
-    'student_engagement', 'student_enrollment_key',
-    'engagement rows reconcile with enrollments',
+    'student_engagement', 'student_cohort_key',
+    'engagement rows reconcile with the supporting cohort',
     'CONSISTENCY', 'UNIQUE_VOLUME_RECONCILIATION',
-    'One non-negative engagement row per enrollment',
+    'One non-negative engagement row per student and presentation',
     0, 'CRITICAL', 'analytics', COUNT(*),
     COUNT_IF(
-      student_enrollment_key IS NULL
-      OR active_days < 0
-      OR activities_used < 0
-      OR total_clicks < 0
-    )
-      + COUNT(*) - COUNT(DISTINCT student_enrollment_key)
+      student_cohort_key IS NULL OR active_days < 0 OR activities_used < 0 OR total_clicks < 0
+    ) + COUNT(*) - COUNT(DISTINCT student_cohort_key)
       + ABS(
         COUNT(*) - (
-          SELECT COUNT(*)
-          FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment')
+          SELECT COUNT(*) FROM IDENTIFIER(analytics_namespace || '.student_cohort')
         )
       )
   FROM IDENTIFIER(analytics_namespace || '.student_engagement')
@@ -124,11 +120,10 @@ checks AS (
   UNION ALL
 
   SELECT
-    'assessment_performance',
-    'module_presentation_key, assessment_type',
+    'assessment_performance', 'module_presentation_key, assessment_type',
     'assessment metrics and additive controls are valid',
     'VALIDITY', 'UNIQUE_RANGE_RECONCILIATION',
-    'One row per group; counters reconcile; rates are 0 to 1',
+    'One row per group; counters reconcile; rates are between zero and one',
     0, 'CRITICAL', 'analytics', COUNT(*),
     COUNT_IF(
       submission_count <= 0
@@ -136,10 +131,8 @@ checks AS (
       OR passed_submission_count > scored_submission_count
       OR dated_submission_count > submission_count
       OR late_submission_count > dated_submission_count
-      OR average_score IS NULL
-      OR average_score NOT BETWEEN 0 AND 100
-      OR pass_rate IS NULL
-      OR pass_rate NOT BETWEEN 0 AND 1
+      OR average_score IS NULL OR average_score NOT BETWEEN 0 AND 100
+      OR pass_rate IS NULL OR pass_rate NOT BETWEEN 0 AND 1
       OR late_submission_rate NOT BETWEEN 0 AND 1
     ) + COUNT(*) - COUNT(DISTINCT STRUCT(module_presentation_key, assessment_type))
       AS failed_count
@@ -148,22 +141,18 @@ checks AS (
   UNION ALL
 
   SELECT
-    'at_risk_students', 'student_enrollment_key',
-    'risk rows reconcile with enrollments',
+    'at_risk_students', 'student_cohort_key',
+    'risk rows reconcile with the supporting cohort',
     'CONSISTENCY', 'UNIQUE_ACCEPTED_VALUES_VOLUME_RECONCILIATION',
-    'One LOW, MEDIUM, or HIGH rule-based risk row per enrollment',
+    'One LOW, MEDIUM, or HIGH screening row per student and presentation',
     0, 'CRITICAL', 'analytics', COUNT(*),
     COUNT_IF(
-      student_enrollment_key IS NULL
-      OR risk_score < 0
-      OR risk_score > 5
+      student_cohort_key IS NULL OR risk_score < 0 OR risk_score > 5
       OR risk_level NOT IN ('LOW', 'MEDIUM', 'HIGH')
-    )
-      + COUNT(*) - COUNT(DISTINCT student_enrollment_key)
+    ) + COUNT(*) - COUNT(DISTINCT student_cohort_key)
       + ABS(
         COUNT(*) - (
-          SELECT COUNT(*)
-          FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment')
+          SELECT COUNT(*) FROM IDENTIFIER(analytics_namespace || '.student_cohort')
         )
       )
   FROM IDENTIFIER(analytics_namespace || '.at_risk_students')
@@ -171,29 +160,27 @@ checks AS (
   UNION ALL
 
   SELECT
-    'student_enrollment_pipeline',
-    'row_count, studied_credits, outcome counts',
-    'Silver enrollment controls reconcile with Gold',
+    'student_cohort_pipeline', 'row_count, studied_credits, outcome counts',
+    'Silver cohort controls reconcile with Analytics',
     'ACCURACY', 'CONTROL_TOTAL_RECONCILIATION',
-    'Six enrollment control totals are unchanged from Silver to Gold',
-    0, 'CRITICAL', 'data_engineering', 6,
-    CASE WHEN silver.row_count <> gold.row_count THEN 1 ELSE 0 END
-      + CASE WHEN silver.studied_credits <> gold.studied_credits THEN 1 ELSE 0 END
-      + CASE WHEN silver.withdrawn_count <> gold.withdrawn_count THEN 1 ELSE 0 END
-      + CASE WHEN silver.failed_count <> gold.failed_count THEN 1 ELSE 0 END
-      + CASE WHEN silver.passed_count <> gold.passed_count THEN 1 ELSE 0 END
-      + CASE WHEN silver.distinction_count <> gold.distinction_count THEN 1 ELSE 0 END
-  FROM silver_enrollment AS silver
-  CROSS JOIN gold_enrollment AS gold
+    'Six cohort controls are unchanged from Silver to the supporting Analytics model',
+    0, 'CRITICAL', 'analytics', 6,
+    CASE WHEN silver.row_count <> analytics.row_count THEN 1 ELSE 0 END
+      + CASE WHEN silver.studied_credits <> analytics.studied_credits THEN 1 ELSE 0 END
+      + CASE WHEN silver.withdrawn_count <> analytics.withdrawn_count THEN 1 ELSE 0 END
+      + CASE WHEN silver.failed_count <> analytics.failed_count THEN 1 ELSE 0 END
+      + CASE WHEN silver.passed_count <> analytics.passed_count THEN 1 ELSE 0 END
+      + CASE WHEN silver.distinction_count <> analytics.distinction_count THEN 1 ELSE 0 END
+  FROM silver_cohort AS silver
+  CROSS JOIN analytics_cohort AS analytics
 
   UNION ALL
 
   SELECT
-    'assessment_submission_pipeline',
-    'row_count, scored_count, missing_score_count, score_sum',
+    'assessment_pipeline', 'row_count, scored_count, missing_score_count, score_sum',
     'Silver assessment controls reconcile with Gold',
     'ACCURACY', 'CONTROL_TOTAL_RECONCILIATION',
-    'Four assessment control totals are unchanged from Silver to Gold',
+    'Four assessment controls are unchanged from Silver to fact_assessments',
     0, 'CRITICAL', 'data_engineering', 4,
     CASE WHEN silver.row_count <> gold.row_count THEN 1 ELSE 0 END
       + CASE WHEN silver.scored_count <> gold.scored_count THEN 1 ELSE 0 END
@@ -205,10 +192,10 @@ checks AS (
   UNION ALL
 
   SELECT
-    'vle_interaction_pipeline', 'row_count, sum_click',
+    'vle_pipeline', 'row_count, sum_click',
     'Silver VLE controls reconcile with Gold',
     'ACCURACY', 'CONTROL_TOTAL_RECONCILIATION',
-    'VLE row count and click total are unchanged from Silver to Gold',
+    'VLE row count and click total are unchanged in fact_vle_interactions',
     0, 'CRITICAL', 'data_engineering', 2,
     CASE WHEN silver.row_count <> gold.row_count THEN 1 ELSE 0 END
       + CASE WHEN silver.click_sum <> gold.click_sum THEN 1 ELSE 0 END
@@ -219,29 +206,29 @@ checks AS (
 
   SELECT
     'learner_outcomes', 'enrollment and outcome counts',
-    'Gold enrollment controls reconcile with Analytics outcomes',
+    'Cohort controls reconcile with learner outcomes',
     'ACCURACY', 'CONTROL_TOTAL_RECONCILIATION',
-    'Five enrollment controls are unchanged in learner_outcomes',
+    'Five cohort controls are unchanged in learner_outcomes',
     0, 'CRITICAL', 'analytics', 5,
-    CASE WHEN gold.row_count <> analytics.enrolled_count THEN 1 ELSE 0 END
-      + CASE WHEN gold.withdrawn_count <> analytics.withdrawn_count THEN 1 ELSE 0 END
-      + CASE WHEN gold.failed_count <> analytics.failed_count THEN 1 ELSE 0 END
-      + CASE WHEN gold.passed_count <> analytics.passed_count THEN 1 ELSE 0 END
-      + CASE WHEN gold.distinction_count <> analytics.distinction_count THEN 1 ELSE 0 END
-  FROM gold_enrollment AS gold
-  CROSS JOIN analytics_outcomes AS analytics
+    CASE WHEN cohort.row_count <> outcomes.enrolled_count THEN 1 ELSE 0 END
+      + CASE WHEN cohort.withdrawn_count <> outcomes.withdrawn_count THEN 1 ELSE 0 END
+      + CASE WHEN cohort.failed_count <> outcomes.failed_count THEN 1 ELSE 0 END
+      + CASE WHEN cohort.passed_count <> outcomes.passed_count THEN 1 ELSE 0 END
+      + CASE WHEN cohort.distinction_count <> outcomes.distinction_count THEN 1 ELSE 0 END
+  FROM analytics_cohort AS cohort
+  CROSS JOIN analytics_outcomes AS outcomes
 
   UNION ALL
 
   SELECT
-    'student_engagement', 'enrollment_count, total_clicks',
-    'Gold controls reconcile with Analytics engagement',
+    'student_engagement', 'cohort_count, total_clicks',
+    'Gold and cohort controls reconcile with engagement Analytics',
     'ACCURACY', 'CONTROL_TOTAL_RECONCILIATION',
-    'Enrollment count and click total are unchanged in student_engagement',
+    'Cohort count and Gold click total are unchanged in student_engagement',
     0, 'CRITICAL', 'analytics', 2,
-    CASE WHEN enrollment.row_count <> engagement.enrollment_count THEN 1 ELSE 0 END
+    CASE WHEN cohort.row_count <> engagement.cohort_count THEN 1 ELSE 0 END
       + CASE WHEN vle.click_sum <> engagement.click_sum THEN 1 ELSE 0 END
-  FROM gold_enrollment AS enrollment
+  FROM analytics_cohort AS cohort
   CROSS JOIN gold_vle AS vle
   CROSS JOIN analytics_engagement AS engagement
 
@@ -250,9 +237,9 @@ checks AS (
   SELECT
     'assessment_performance',
     'submission_count, scored_count, missing_score_count, score_sum',
-    'Gold controls reconcile with Analytics assessment performance',
+    'Gold controls reconcile with assessment performance',
     'ACCURACY', 'CONTROL_TOTAL_RECONCILIATION',
-    'Four assessment controls are unchanged in assessment_performance',
+    'Four Gold assessment controls are unchanged in assessment_performance',
     0, 'CRITICAL', 'analytics', 4,
     CASE WHEN gold.row_count <> analytics.submission_count THEN 1 ELSE 0 END
       + CASE WHEN gold.scored_count <> analytics.scored_count THEN 1 ELSE 0 END
@@ -269,10 +256,9 @@ scored AS (
       AS DECIMAL(7, 3)
     ) AS failure_pct,
     CAST(
-      CASE
-        WHEN total_count = 0 THEN 0.0
-        ELSE 100.0 * GREATEST(total_count - failed_count, 0) / total_count
-      END AS DECIMAL(7, 3)
+      CASE WHEN total_count = 0 THEN 0.0
+        ELSE 100.0 * GREATEST(total_count - failed_count, 0) / total_count END
+      AS DECIMAL(7, 3)
     ) AS score_pct
   FROM checks
 ),
@@ -287,24 +273,10 @@ classified AS (
   FROM scored
 )
 SELECT
-  dq_run_id,
-  dq_executed_at,
-  'ANALYTICS',
-  dataset_name,
-  column_name,
-  check_name,
-  quality_dimension,
-  check_type,
-  expectation,
-  threshold_pct,
-  severity,
-  check_owner,
-  total_count,
-  failed_count,
-  GREATEST(total_count - failed_count, 0),
-  score_pct,
-  failure_pct,
-  status
+  dq_run_id, dq_executed_at, 'ANALYTICS', dataset_name, column_name, check_name,
+  quality_dimension, check_type, expectation, threshold_pct, severity, check_owner,
+  total_count, failed_count, GREATEST(total_count - failed_count, 0),
+  score_pct, failure_pct, status
 FROM classified;
 
 SELECT
@@ -317,6 +289,5 @@ SELECT
     'critical Analytics data-quality check failed; inspect dq_check_results'
   ) AS analytics_quality_gate
 FROM IDENTIFIER(dq_namespace || '.dq_check_results')
-WHERE run_id = dq_run_id
-  AND layer = 'ANALYTICS'
+WHERE run_id = dq_run_id AND layer = 'ANALYTICS'
 ORDER BY dataset_name, check_name;

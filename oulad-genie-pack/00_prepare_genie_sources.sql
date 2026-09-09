@@ -11,7 +11,7 @@ SELECT
   code_presentation,
   final_result,
   COUNT(*) AS student_enrollments
-FROM `ftw-week-07`.`03-mart`.fact_student_enrollment
+FROM `ftw-week-07`.`04-analytics`.student_cohort
 GROUP BY code_module, code_presentation, final_result;
 
 CREATE OR REPLACE VIEW `ftw-week-07`.`04-analytics`.genie_engagement_outcomes AS
@@ -44,9 +44,9 @@ SELECT
     SUM(interaction.sum_click) / NULLIF(COUNT(DISTINCT interaction.student_key), 0),
     2
   ) AS average_clicks_per_active_student
-FROM `ftw-week-07`.`03-mart`.fact_vle_interaction AS interaction
-INNER JOIN `ftw-week-07`.`03-mart`.dim_relative_date AS relative_date
-  ON interaction.activity_date_key = relative_date.relative_date_key
+FROM `ftw-week-07`.`03-mart`.fact_vle_interactions AS interaction
+INNER JOIN `ftw-week-07`.`03-mart`.dim_date AS relative_date
+  ON interaction.activity_date_key = relative_date.date_key
 INNER JOIN `ftw-week-07`.`03-mart`.dim_module_presentation AS module
   ON interaction.module_presentation_key = module.module_presentation_key
 GROUP BY module.code_module, module.code_presentation, relative_date.relative_week;
@@ -67,7 +67,7 @@ SELECT
     AS successful_outcome_rate,
   ROUND(AVG(enrollment.studied_credits), 2) AS average_studied_credits,
   ROUND(AVG(enrollment.num_of_prev_attempts), 2) AS average_previous_attempts
-FROM `ftw-week-07`.`03-mart`.fact_student_enrollment AS enrollment
+FROM `ftw-week-07`.`04-analytics`.student_cohort AS enrollment
 INNER JOIN `ftw-week-07`.`03-mart`.dim_demographics AS demographic
   ON enrollment.demographics_key = demographic.demographics_key
 GROUP BY

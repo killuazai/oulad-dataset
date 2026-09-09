@@ -1,9 +1,8 @@
 -- Databricks notebook source
 -- Name: 10 - Student Engagement
--- Purpose: Provide reusable VLE engagement measures for every student-course enrollment.
--- Grain: One row per student and course presentation.
+-- Purpose: Relate daily VLE engagement to each student's final performance outcome.
+-- Grain: One student and module presentation, including students with no VLE activity.
 
--- Explanation: Declare variables needed from the setup notebook.
 DECLARE OR REPLACE VARIABLE analytics_namespace STRING DEFAULT '`ftw-week-07`.`04-analytics`';
 DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
 
@@ -14,23 +13,23 @@ WITH engagement AS (
   SELECT
     module_presentation_key,
     student_key,
-    COUNT(DISTINCT activity_date) AS active_days,
-    COUNT(DISTINCT vle_activity_key) AS activities_used,
+    COUNT(DISTINCT activity_relative_day) AS active_days,
+    COUNT(DISTINCT id_site) AS activities_used,
     SUM(sum_click) AS total_clicks,
-    MIN(activity_date) AS first_activity_day,
-    MAX(activity_date) AS last_activity_day
-  FROM IDENTIFIER(mart_namespace || '.fact_vle_interaction')
-  GROUP BY
-    module_presentation_key,
-    student_key
+    MIN(activity_relative_day) AS first_activity_day,
+    MAX(activity_relative_day) AS last_activity_day
+  FROM IDENTIFIER(mart_namespace || '.fact_vle_interactions')
+  GROUP BY module_presentation_key, student_key
 )
 SELECT
-  enrollment.student_enrollment_key,
-  enrollment.module_presentation_key,
-  enrollment.student_key,
-  enrollment.code_module,
-  enrollment.code_presentation,
-  enrollment.id_student,
+  cohort.student_cohort_key,
+  cohort.module_presentation_key,
+  cohort.course_key,
+  cohort.student_key,
+  cohort.demographics_key,
+  cohort.code_module,
+  cohort.code_presentation,
+  cohort.id_student,
   COALESCE(engagement.active_days, 0) AS active_days,
   COALESCE(engagement.activities_used, 0) AS activities_used,
   COALESCE(engagement.total_clicks, 0) AS total_clicks,
@@ -40,8 +39,8 @@ SELECT
     WHEN COALESCE(engagement.active_days, 0) = 0 THEN 0.0
     ELSE engagement.total_clicks * 1.0 / engagement.active_days
   END AS average_clicks_per_active_day,
-  enrollment.final_result
-FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment') AS enrollment
+  cohort.final_result
+FROM IDENTIFIER(analytics_namespace || '.student_cohort') AS cohort
 LEFT JOIN engagement
-  ON enrollment.module_presentation_key = engagement.module_presentation_key
-  AND enrollment.student_key = engagement.student_key;
+  ON cohort.module_presentation_key = engagement.module_presentation_key
+  AND cohort.student_key = engagement.student_key;

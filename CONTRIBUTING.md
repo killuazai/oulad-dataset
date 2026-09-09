@@ -6,12 +6,14 @@
 2. Develop and test exploratory SQL in `queries/` or a shared Databricks workspace.
 3. Move finalized reusable SQL into the matching numbered `src/` layer.
 4. Add or update a persistent validation check in `tests/` for every production table.
-5. Run the local checks, commit, push the branch, and open a pull request.
-6. Ask a teammate to review the grain, joins, checks, and documentation before merge.
+5. Update the corresponding dbt model and schema test when the mart changes.
+6. Run the local checks, commit, push the branch, and open a pull request.
+7. Ask a teammate to review the grain, joins, checks, and documentation before merge.
 
 ```bash
 python3 scripts/check_repository.py
-sqlfluff lint src tests queries dashboards --dialect databricks
+sqlfluff lint src tests/*.sql queries dashboards --dialect databricks
+dbt parse
 ```
 
 ## SQL conventions

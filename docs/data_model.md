@@ -1,185 +1,141 @@
-# Final OULAD conformed star schema
+# Final OULAD star schema
 
-## Model classification
+## Scope
 
-The Gold layer is a **fact constellation** containing three stars. The stars share conformed Student, Demographics, Module Presentation, and Relative Date dimensions. Assessment and VLE Activity are process-specific dimensions. Every BI relationship is directly between a dimension and a fact, so the model has no snowball joins, dimension-to-dimension joins, or fact-to-fact joins.
+The core mart follows the professor's required model exactly: **two facts and
+five dimensions**. It is a fact constellation because both facts share the same
+conformed dimensions.
 
-`dim_student` holds stable learner identity. `dim_demographics` holds reusable demographic profiles. Each fact stores both keys directly.
-
-There are exactly six physical dimensions and three physical facts. `dim_registration_date`, `dim_unregistration_date`, `dim_submission_date`, `dim_due_date`, and `dim_activity_date` are BI role-playing views of the same physical `dim_relative_date`; they do not increase the physical dimension count.
-
-## Canonical naming
-
-Use these names consistently in SQL, Catalog Explorer, documentation, and diagrams:
-
-| Physical object | Primary key | Declared grain |
+| Object | Key | Grain |
 |---|---|---|
-| `dim_student` | `student_key` | One anonymized learner identity |
+| `dim_student` | `student_key` | One anonymized student |
+| `dim_course` | `course_key` | One module code |
+| `dim_module_presentation` | `module_presentation_key` | One module and presentation |
+| `dim_date` | `date_key` | One relative course day |
 | `dim_demographics` | `demographics_key` | One distinct demographic profile |
-| `dim_module_presentation` | `module_presentation_key` | One module offered in one presentation |
-| `dim_assessment` | `assessment_key` | One assessment |
-| `dim_vle_activity` | `vle_activity_key` | One VLE site in one module presentation |
-| `dim_relative_date` | `relative_date_key` | One relative course day |
-| `fact_student_enrollment` | `student_enrollment_key` | One learner enrolled in one module presentation |
-| `fact_assessment_submission` | `assessment_submission_key` | One learner submission for one assessment |
-| `fact_vle_interaction` | `vle_interaction_key` | One learner-site-day interaction in one module presentation |
-
-Keep the original source identifiers as attributes: `id_student`, `id_assessment`, and `id_site`. Use the `_key` columns for fact-to-dimension relationships.
+| `fact_assessments` | `assessment_submission_key` | One student assessment submission |
+| `fact_vle_interactions` | `vle_interaction_key` | One student, VLE site, and relative day |
 
 ## Relationship diagram
 
 ```mermaid
 erDiagram
-    DIM_STUDENT ||--o{ FACT_STUDENT_ENROLLMENT : student_key
-    DIM_STUDENT ||--o{ FACT_ASSESSMENT_SUBMISSION : student_key
-    DIM_STUDENT ||--o{ FACT_VLE_INTERACTION : student_key
+    DIM_STUDENT ||--o{ FACT_ASSESSMENTS : student_key
+    DIM_STUDENT ||--o{ FACT_VLE_INTERACTIONS : student_key
 
-    DIM_DEMOGRAPHICS ||--o{ FACT_STUDENT_ENROLLMENT : demographics_key
-    DIM_DEMOGRAPHICS ||--o{ FACT_ASSESSMENT_SUBMISSION : demographics_key
-    DIM_DEMOGRAPHICS ||--o{ FACT_VLE_INTERACTION : demographics_key
+    DIM_COURSE ||--o{ FACT_ASSESSMENTS : course_key
+    DIM_COURSE ||--o{ FACT_VLE_INTERACTIONS : course_key
 
-    DIM_MODULE_PRESENTATION ||--o{ FACT_STUDENT_ENROLLMENT : module_presentation_key
-    DIM_MODULE_PRESENTATION ||--o{ FACT_ASSESSMENT_SUBMISSION : module_presentation_key
-    DIM_MODULE_PRESENTATION ||--o{ FACT_VLE_INTERACTION : module_presentation_key
+    DIM_MODULE_PRESENTATION ||--o{ FACT_ASSESSMENTS : module_presentation_key
+    DIM_MODULE_PRESENTATION ||--o{ FACT_VLE_INTERACTIONS : module_presentation_key
 
-    DIM_RELATIVE_DATE ||--o{ FACT_STUDENT_ENROLLMENT : registration_and_unregistration_dates
-    DIM_RELATIVE_DATE ||--o{ FACT_ASSESSMENT_SUBMISSION : submission_and_due_dates
-    DIM_RELATIVE_DATE ||--o{ FACT_VLE_INTERACTION : activity_date
+    DIM_DATE ||--o{ FACT_ASSESSMENTS : submission_date_key
+    DIM_DATE ||--o{ FACT_ASSESSMENTS : due_date_key
+    DIM_DATE ||--o{ FACT_VLE_INTERACTIONS : activity_date_key
 
-    DIM_ASSESSMENT ||--o{ FACT_ASSESSMENT_SUBMISSION : assessment_key
-    DIM_VLE_ACTIVITY ||--o{ FACT_VLE_INTERACTION : vle_activity_key
+    DIM_DEMOGRAPHICS ||--o{ FACT_ASSESSMENTS : demographics_key
+    DIM_DEMOGRAPHICS ||--o{ FACT_VLE_INTERACTIONS : demographics_key
 ```
 
-The diagram shows only the physical `dim_relative_date`. The five named date roles are BI views of that table. OULAD dates are offsets from presentation start; the model does not invent calendar dates.
+Both facts connect directly to the five dimensions. The facts do not connect to
+each other. Catalog relationships are registered by
+`src/03_gold/sql/08_gold_relationships.sql` only after Gold validation passes.
 
-## Conformed dimensions
+## Course versus Module Presentation
 
-| Dimension | Key | Exact grain | Main attributes | Used by |
-|---|---|---|---|---|
-| `dim_student` | `student_key` | One anonymized learner identity | `id_student` | All facts |
-| `dim_demographics` | `demographics_key` | One distinct demographic profile | Gender, region, education, IMD band, age band, disability | All facts |
-| `dim_module_presentation` | `module_presentation_key` | One module presentation | Module, presentation, year, term, length | All facts |
-| `dim_relative_date` | `relative_date_key` | One relative course day | Relative day, week, course phase | All facts through role views |
-| `dim_assessment` | `assessment_key` | One assessment | Assessment ID, type, weight, due-day offset | Assessment fact |
-| `dim_vle_activity` | `vle_activity_key` | One VLE site in one module presentation | Site ID, activity type, active weeks | VLE fact |
+These are separate because the assignment names both dimensions and they have
+different grains:
 
-### Why Student and Demographics remain separate
+- `dim_course`: the course/module itself, for example `AAA`.
+- `dim_module_presentation`: a specific run, for example `AAA-2013J`.
 
-The supplied `studentInfo.csv` contains 28,785 distinct learner IDs but 28,857 distinct learner-profile combinations. Seventy-two learners have two recorded demographic profiles. Merging the attributes into a table with one row per `id_student` would therefore map one student to conflicting values.
+`module_presentation_length` belongs to the presentation because the same
+module can have different lengths in different presentations. The presentation
+model keeps `course_key` for lineage and dbt tests that it maps to a valid
+course. For simple BI navigation, both facts also carry `course_key`, so no
+dimension-to-dimension join is required.
 
-`student_key` is generated only from `id_student`. `demographics_key` is generated from the six profile attributes. Each fact receives both keys from the learner's module-presentation record. The dimensions do not join to each other, so the design remains a star constellation and avoids snowball joins.
+## Fact details
 
-`demographics_key` is a surrogate key, but `dim_demographics` is not SCD Type 2. A true SCD Type 2 dimension needs a business key such as `id_student`, version-effective start and end values, and normally an `is_current` indicator. This table is a conformed demographic profile mini-dimension; the fact association supplies the applicable profile context.
+### `fact_assessments`
 
-## Fact grains and relationships
-
-### `fact_student_enrollment`
-
-Exact grain: one learner enrolled in one module presentation.
-
-Primary key: `student_enrollment_key`.
+One row represents one student's submission for one assessment. It is the
+event-based fact.
 
 Foreign keys:
 
 - `student_key` → `dim_student`
-- `demographics_key` → `dim_demographics`
+- `course_key` → `dim_course`
 - `module_presentation_key` → `dim_module_presentation`
-- `registration_date_key` → `dim_registration_date`
-- `unregistration_date_key` → `dim_unregistration_date`
+- `demographics_key` → `dim_demographics`
+- `submission_date_key` and `due_date_key` → `dim_date`
 
-Additive measures are `enrollment_count`, `studied_credits`, `withdrawn_count`, `failed_count`, `passed_count`, and `distinction_count`. The four outcome counters must sum to one on every row. Registration and unregistration keys may be null when their source offsets are unknown.
+Assessment ID, type, decimal weight, score, banked status, pass flag, and days
+from due date are stored in this fact because Assessment is not one of the five
+required dimensions. A missing score remains null. A due-date key may be null
+for exams whose source due offset is null.
 
-### `fact_assessment_submission`
+### `fact_vle_interactions`
 
-Exact grain: one learner submission for one assessment.
-
-Primary key: `assessment_submission_key`.
+One row represents a student's interactions with one VLE site on one relative
+day. Silver groups repeated raw rows and sums their clicks, so this is the
+required aggregated fact.
 
 Foreign keys:
 
 - `student_key` → `dim_student`
-- `demographics_key` → `dim_demographics`
+- `course_key` → `dim_course`
 - `module_presentation_key` → `dim_module_presentation`
-- `assessment_key` → `dim_assessment`
-- `submitted_date_key` → `dim_submission_date`
-- `due_date_key` → `dim_due_date`
-
-Additive measures are `submission_count` and score totals when aggregated with their matching scored counts. The 173 missing source scores remain null. `passed_assessment` is null when score is null; otherwise a score of at least 40 is a pass. `days_from_due_date > 0` means late. Due date may be null for exams without a due-day offset.
-
-### `fact_vle_interaction`
-
-Exact grain: one learner, VLE site, relative course day, and module presentation.
-
-Primary key: `vle_interaction_key`.
-
-Foreign keys:
-
-- `student_key` → `dim_student`
 - `demographics_key` → `dim_demographics`
-- `module_presentation_key` → `dim_module_presentation`
-- `vle_activity_key` → `dim_vle_activity`
-- `activity_date_key` → `dim_activity_date`
+- `activity_date_key` → `dim_date`
 
-Silver consolidates repeated raw learner-site-day rows. `sum_click` preserves the click total, and `student_site_day_count = 1` counts rows at the declared Gold grain.
+VLE site ID, activity type, availability weeks, relative activity day, and
+`sum_click` are stored in the fact because VLE Resource is not one of the five
+required dimensions.
 
-## Role-playing relative-date views
+## Date roles
 
-| BI view | Key exposed to BI | Meaning |
-|---|---|---|
-| `dim_registration_date` | `registration_date_key` | Registration day relative to presentation start |
-| `dim_unregistration_date` | `unregistration_date_key` | Unregistration day relative to presentation start |
-| `dim_submission_date` | `submitted_date_key` | Assessment submission day |
-| `dim_due_date` | `due_date_key` | Assessment due-day offset |
-| `dim_activity_date` | `activity_date_key` | VLE activity day |
+OULAD dates are integer offsets relative to presentation start. They are not
+calendar dates. Both assessment date keys and the VLE activity date key point
+to the same physical `dim_date.date_key`.
 
-These are views, not duplicated physical tables. Their role-specific column names prevent ambiguous BI relationships.
+The Databricks SQL compatibility build also creates three optional role-playing
+views to make BI labels clearer without adding physical dimensions:
 
-## Measure behavior
+- `dim_submission_date`
+- `dim_due_date`
+- `dim_activity_date`
 
-Additive measures include enrollment and outcome counts; submission, scored, missing-score, passed, due-dated, and late counts; score sum; VLE clicks; and student-site-day count.
+## Student and Demographics
 
-Recalculate rates from additive controls:
+`dim_student` contains stable identity. `dim_demographics` contains gender,
+region, education, IMD band, age band, and disability. They remain separate
+because some students have more than one demographic profile across module
+presentations.
 
-```text
-average assessment score = score_sum / scored_submission_count
-assessment pass rate = passed_submission_count / scored_submission_count
-late submission rate = late_submission_count / dated_submission_count
-successful outcome rate = (passed_students + distinction_students) / enrolled_students
-withdrawal rate = withdrawn_students / enrolled_students
-```
+`demographics_key` is a surrogate key, but that alone does not make this SCD
+Type 2. A true Type 2 dimension would need a student business key, effective
+start/end boundaries, and a current-row indicator; OULAD does not provide a
+reliable effective timeline for those changes.
 
-Do not average already-aggregated rates, sum distinct-student counts across groups, or average group medians and describe the result as an overall median.
+## Supporting cohort model
 
-## Expected cardinalities for the supplied snapshot
+`04-analytics.student_cohort` is intentionally outside the core Gold star. It
+contains one student per module presentation and preserves students who have no
+submission or VLE event. It supplies correct denominators for enrollment,
+dropout, and risk analysis without adding a third core fact.
 
-| Object | Expected rows or members |
+## Expected source-aligned controls
+
+| Control | Expected value for the supplied snapshot |
 |---|---:|
-| `dim_module_presentation` | 22 |
-| `dim_student` | 28,785 |
-| `dim_demographics` | 1,913 |
-| Learners with two recorded demographic profiles | 72 |
-| `dim_assessment` | 206 |
-| `dim_vle_activity` | 6,364 |
-| `fact_student_enrollment` | 32,593 |
-| `fact_assessment_submission` | 173,912 |
+| Courses | 7 |
+| Module presentations | 22 |
+| Distinct students | 28,785 |
+| Assessment submissions | 173,912 |
 | Missing assessment scores | 173 |
-| Bronze `student_vle` rows | 10,655,280 |
+| VLE resources in source | 6,364 |
+| Bronze VLE rows | 10,655,280 |
 
-The Gold VLE fact may contain fewer rows than Bronze because Silver consolidates repeated rows. Its total `sum_click` must reconcile exactly from Silver to Gold and into Student Engagement.
-
-## BI relationship rules
-
-- Use one-to-many cardinality from each dimension to its fact.
-- Use single-direction filtering from dimension to fact.
-- Do not relate facts directly.
-- Do not relate dimensions to other dimensions.
-- Use the correct date-role view for each fact key.
-- Hide hash keys and duplicated audit identifiers from dashboard users.
-- Use dimensions for grouping and filtering, and additive fact controls for calculations.
-- Use `dim_student` for learner counts and `dim_demographics` for demographic grouping.
-
-The relationships are registered as informational Unity Catalog primary and foreign keys by `src/03_gold/sql/08_gold_relationships.sql`. They are not enforced by Databricks; the Gold validation suite proves the grains and referential integrity before registering them.
-
-## Accuracy boundary
-
-The model tests transformation Accuracy by reconciling counts and totals between Silver, Gold, and Analytics. It cannot prove real-world Accuracy without an independent authoritative reference.
+The final VLE fact is smaller than Bronze because of daily aggregation. Its
+total `sum_click` must reconcile exactly.

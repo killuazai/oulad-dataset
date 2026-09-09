@@ -1,48 +1,25 @@
 # Architecture
 
-## End-to-end flow
-
 ```mermaid
 flowchart LR
-    SET[Set Up] --> B[Bronze]
-    B --> QB[Bronze Validation]
-    QB --> C[Silver]
-    C --> QS[Silver Validation]
-    QS --> GD[Gold dimensions]
-    QS --> GF[Gold facts]
-    GD --> QG[Gold Validation]
-    GF --> QG
-    QG --> LO[Learner Outcomes]
-    QG --> AP[Assessment Performance]
-    QG --> SE[Student Engagement]
-    QG --> AR[At-Risk Students]
-    LO --> QA[Analytics Validation<br/>including Accuracy]
-    AP --> QA
-    SE --> QA
-    AR --> QA
-    QA --> BD[Business Analytics Dashboard]
-    QB --> DD[Data Quality Dashboard]
-    QS --> DD
-    QG --> DD
-    QA --> DD
+    CSV[OULAD CSVs] --> RAW[Bronze / Raw]
+    RAW --> BRONZE_DQ[Bronze Validation]
+    BRONZE_DQ --> CLEAN[Silver / Clean]
+    CLEAN --> SILVER_DQ[Silver Validation]
+    SILVER_DQ --> DBT[dbt mart: 5 dimensions + 2 facts]
+    DBT --> GOLD_DQ[Gold Validation]
+    GOLD_DQ --> ANALYTICS[Analytics and cohort models]
+    ANALYTICS --> ANALYTICS_DQ[Analytics Validation + Accuracy]
+    ANALYTICS_DQ --> METABASE[Metabase]
 ```
 
-OULAD is a fixed research snapshot, so transformation tables use deterministic full refreshes. `dq_check_results` is append-only for audit and trend analysis.
+The dbt mart is the assignment implementation. The SQL under `src/03_gold/`
+mirrors the same model for a Databricks-only demonstration runner.
 
-## Failure boundaries
+Every transformed layer has a gate. The data-quality dashboard reads only the
+Bronze, Silver, Gold, and Analytics validation outputs. The business dashboard
+refreshes only after Analytics validation.
 
-- Setup stops when the source directory does not contain exactly the expected seven CSV files.
-- Every transformed layer is followed by a critical gate.
-- Reconciliation stops dashboard refresh when control totals change across layers.
-- Noncritical known conditions remain visible as warnings.
-- The business dashboard waits for Analytics validation.
-- The data-quality dashboard waits for Bronze, Silver, Gold, and Analytics validation; the Analytics suite includes the cross-layer Accuracy gate.
-
-## Cost and scalability
-
-- Explicit CSV schemas avoid inference scans.
-- Silver consolidates VLE events once at the required grain.
-- Gold uses deterministic direct keys and avoids snowball joins.
-- Dashboards and Genie query small governed aggregates where possible.
-- Historical DQ queries run only for trend/drill-down use cases.
-- For substantially larger facts, compact numeric surrogate keys can replace SHA-256 strings if changed consistently across dimensions, facts, tests, and BI relationships.
+OULAD is a fixed research snapshot, so deterministic full refresh is safer than
+incremental state without a reliable source update timestamp. If recurring
+files are introduced later, add batch metadata and process only affected keys.

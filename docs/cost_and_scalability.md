@@ -6,11 +6,11 @@ The current design targets Databricks Free Edition and the fixed OULAD snapshot 
 
 | Choice | Cost and reliability reason |
 | --- | --- |
-| Databricks SQL | The workload is relational ingestion, cleaning, joins, aggregation, and dashboard serving; no extra Spark application is required |
+| dbt on Databricks SQL | dbt supplies mart lineage and tests while Databricks handles relational execution without a separate Spark application |
 | Explicit `read_files` schemas | Avoids schema-inference scans and exposes malformed values through `_rescued_data` |
 | Deterministic full refresh | Simple and reproducible for a fixed research snapshot; avoids incremental-state complexity |
 | VLE aggregation in Silver | Reduces 10,655,280 source rows to the declared 8,459,320 daily fact grain before Gold and dashboard queries |
-| Conformed direct-key facts | Prevents repeated snowball joins and simplifies BI query plans |
+| Two conformed direct-key facts | Matches the assignment, prevents snowball joins, and simplifies BI query plans |
 | Compact DQ result rows | Stores one summary per check rather than copying failed source datasets into the monitoring layer |
 | Fail early by layer | Stops downstream table and dashboard work after a critical upstream failure |
 | No automatic `OPTIMIZE` step | Avoids recurring maintenance cost before query history proves it is needed |

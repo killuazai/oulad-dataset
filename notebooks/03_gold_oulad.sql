@@ -7,6 +7,10 @@
 
 -- COMMAND ----------
 
+-- MAGIC %run ../src/03_gold/sql/05_reset_gold_model
+
+-- COMMAND ----------
+
 -- MAGIC %run ../src/03_gold/sql/06_gold_dimensions
 
 -- COMMAND ----------

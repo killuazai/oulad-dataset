@@ -1,150 +1,128 @@
-# OULAD Data Quality and Analytics Pipeline
+# OULAD Student Performance and Engagement Pipeline
 
-A Databricks SQL project that transforms the Open University Learning Analytics Dataset into validated Bronze, Silver, Gold, and Analytics data, two governed dashboards, and persistent data-quality history.
+An end-to-end Open University Learning Analytics Dataset pipeline with raw and
+clean layers, a dbt mart, validation at every layer, and Metabase-ready
+analytics for performance, engagement, cohorts, and dropout risk.
+
+## Assignment alignment
+
+| Requirement | Repository implementation |
+|---|---|
+| Ingest CSVs into raw | `src/01_bronze/sql/02_bronze_sources.sql` |
+| Standardize types and missing values | `src/02_silver/sql/04_silver_tables.sql` |
+| Two facts | `fact_assessments`, `fact_vle_interactions` |
+| Five dimensions | Student, Course, Module Presentation, Date, Demographics |
+| Implement the mart in dbt | `dbt_project.yml`, `models/mart/` |
+| Build Metabase dashboards | `metabase/README.md`, `metabase/dashboard_queries.sql` |
+| Prove trust and reliability | Bronze, Silver, Gold, and Analytics validation suites |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    SET[Set Up] --> B[Bronze]
+    S[Seven OULAD CSVs] --> B[Bronze / Raw]
     B --> QB[Bronze Validation]
-    QB --> S[Silver]
-    S --> QS[Silver Validation]
-    QS --> GD[Gold Dimensions]
-    QS --> GF[Gold Facts]
-    GD --> QG[Gold Validation]
-    GF --> QG
-    QG --> LO[Analytics: Learner Outcomes]
-    QG --> AP[Analytics: Assessment Performance]
-    QG --> SE[Analytics: Student Engagement]
-    QG --> AR[Analytics: At-Risk Students]
-    LO --> QA[Analytics Validation<br/>including Accuracy]
-    AP --> QA
-    SE --> QA
-    AR --> QA
-    QA --> BD[Business Analytics Dashboard]
-    QB --> DD[Data Quality Dashboard]
-    QS --> DD
-    QG --> DD
-    QA --> DD
+    QB --> C[Silver / Clean]
+    C --> QS[Silver Validation]
+    QS --> D[dbt build: 5 dimensions + 2 facts]
+    D --> QG[Gold Validation]
+    QG --> A[Analytics and cohort views]
+    A --> QA[Analytics Validation including Accuracy]
+    QA --> M[Metabase Dashboard]
+    QB --> DQ[Data Quality Dashboard]
+    QS --> DQ
+    QG --> DQ
+    QA --> DQ
 ```
 
-This mirrors the Databricks job dependencies. Gold dimensions and facts run in parallel after Silver validation. Learner Outcomes, Assessment Performance, Student Engagement, and At-Risk Students all depend directly on Gold Validation and feed Analytics Validation. The Business Analytics Dashboard has one direct dependency: Analytics Validation. The Data Quality Dashboard has only four direct dependencies: Bronze Validation, Silver Validation, Gold Validation, and Analytics Validation. Quality results are appended to `ftw-week-07.05-data-quality.dq_check_results`.
+Accuracy is consolidated in Analytics validation as cross-layer control-total
+reconciliation. It does not claim comparison with an external real-world truth
+source.
 
-## Schemas
+## Final star schema
 
-| Layer | Schema | Purpose |
-|---|---|---|
-| Source | `ftw-week-07.00-source` | Unity Catalog volume containing the seven CSV files |
-| Bronze | `ftw-week-07.01-raw` | Typed source-aligned Delta tables and ingestion metadata |
-| Silver | `ftw-week-07.02-clean` | Standardized values, valid relationships, deliberate VLE consolidation |
-| Gold | `ftw-week-07.03-mart` | Three fact stars with conformed dimensions |
-| Analytics | `ftw-week-07.04-analytics` | Reusable learner, engagement, assessment, and risk datasets |
-| Data quality | `ftw-week-07.05-data-quality` | Append-only checks and dashboard-ready views |
+The core mart contains exactly two facts and five dimensions:
 
-## Source files
+- `fact_assessments`: one student assessment submission; event-based fact.
+- `fact_vle_interactions`: one student, VLE site, and relative day after daily
+  click aggregation; aggregated fact.
+- `dim_student`: one anonymized student identity.
+- `dim_course`: one module code.
+- `dim_module_presentation`: one specific offering of a course.
+- `dim_date`: one relative course day.
+- `dim_demographics`: one distinct demographic profile.
 
-Upload these files without renaming them:
+Both facts connect directly to all five dimensions. `course_key` on
+`dim_module_presentation` is tested for consistency in dbt, but the BI model
+does not require a dimension-to-dimension join. See `docs/data_model.md`.
 
-```text
-assessments.csv
-courses.csv
-studentAssessment.csv
-studentInfo.csv
-studentRegistration.csv
-studentVle.csv
-vle.csv
+`student_cohort` is a supporting table in `04-analytics`, not a third Gold
+fact. It keeps all enrolled students—including learners with no assessment or
+VLE event—so cohort and dropout metrics have the correct denominator.
+
+## Why Course and Module Presentation are separate
+
+`dim_course` represents the module, such as `AAA`. `dim_module_presentation`
+represents a specific run, such as `AAA-2013J`, whose length may differ from
+another run. This follows the assignment's explicit dimension list while
+keeping presentation-level attributes out of the course grain.
+
+## Dates
+
+OULAD date fields are offsets from the start of a module presentation, not
+calendar dates. `submission_date_key` and `due_date_key` in
+`fact_assessments`, and `activity_date_key` in `fact_vle_interactions`, are
+foreign keys to the same physical `dim_date.date_key`. Negative relative days
+are valid pre-presentation activity.
+
+## Run the assignment path
+
+1. Upload the seven original CSV files to the configured Unity Catalog volume.
+2. Run setup, Bronze, Bronze validation, Silver, and Silver validation.
+3. For the first migration from the old model, run
+   `src/03_gold/sql/05_reset_gold_model.sql`. It removes Gold objects only.
+4. Configure dbt from `profiles.yml.example` and set these environment values:
+   `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`, and `DATABRICKS_TOKEN`.
+5. Build and test the required mart:
+
+```bash
+python3 -m pip install -r requirements-dbt.txt
+dbt build --select path:models/mart
 ```
 
-The configured source directory is:
+6. Run `notebooks/06_run_after_dbt.sql` to validate Gold, create Analytics
+   outputs, run consolidated Accuracy checks, and refresh governed views.
+7. Build the Metabase dashboard using `metabase/README.md`.
 
-```text
-/Volumes/ftw-week-07/00-source/cloudfare-r2/shared/week07
-```
+For Databricks-only demonstration, `notebooks/00_run_full_pipeline.sql` builds
+an equivalent mart from the mirrored SQL in `src/03_gold/sql/`. The dbt models
+remain the canonical assignment implementation.
 
-If the location changes, update `source_path` in both `src/00_setup/01_setup.sql` and `src/01_bronze/sql/02_bronze_sources.sql`.
+## Known source conditions
 
-## Run the pipeline
+- The source contains 173 missing assessment scores. They remain null and are
+  monitored as a non-blocking warning; they are not imputed.
+- Assessment weights include decimals, so `assessment_weight` uses
+  `DECIMAL(5,2)` rather than `INT`.
+- Silver consolidates repeated VLE rows to one student-site-relative-day row
+  while preserving the total `sum_click`.
+- Demographics stays separate from Student because some students have different
+  profile values across module presentations. A surrogate demographics key by
+  itself is not an SCD Type 2 implementation.
 
-Import the repository into Databricks and run:
+## Optional Databricks portfolio assets
 
-```text
-notebooks/00_run_full_pipeline.sql
-```
+The existing Lakeview dashboard exports and Genie source pack are retained as
+additional artifacts. They use the same validated Analytics outputs but do not
+replace the professor-required Metabase dashboard.
 
-The runner performs setup, all four data layers, every layer gate, Analytics validation with cross-layer Accuracy reconciliation, core DQ views, and governed `genie_*` source views.
-
-For a multi-task Databricks job, use the dependency order documented in `FINDINGS_AND_UPLOAD_ORDER.md`. Both dashboard refreshes must wait for `00_prepare_genie_sources.sql`.
-
-## Gold model
-
-The model is a fact constellation with three facts and six physical dimensions. The five date-role objects are views of one physical date dimension, not five additional dimension tables.
-
-- `fact_student_enrollment`: one learner in one module presentation.
-- `fact_assessment_submission`: one learner submission for one assessment.
-- `fact_vle_interaction`: one learner, VLE site, relative day, and module presentation.
-
-Shared dimensions are Student, Demographics, Module Presentation, and Relative Date. Student stores stable identity, while Demographics is a conformed profile mini-dimension linked directly to every fact. Assessment and VLE Activity are process-specific dimensions. Five role-playing date views provide unambiguous BI relationships without duplicating the physical date table. Canonical names are `fact_student_enrollment`, `fact_assessment_submission`, `fact_vle_interaction`, `dim_student`, `dim_demographics`, `dim_module_presentation`, `dim_assessment`, `dim_vle_activity`, and `dim_relative_date`. See `docs/data_model.md`.
-
-After Gold validation passes, `src/03_gold/sql/08_gold_relationships.sql` registers informational primary and foreign keys. In Catalog Explorer, open any Gold fact table and select **View relationships** to display the constellation.
-
-## Data-quality interpretation
-
-The dashboard reports:
-
-- Completeness
-- Timeliness / Volume
-- Validity
-- Accuracy
-- Consistency
-- Uniqueness
-
-Accuracy means control-total reconciliation from Silver to Gold to Analytics. It does not mean comparison with external real-world truth.
-
-The official 173 missing assessment scores remain null. They produce one MEDIUM-severity `WARNING` within the one-percent threshold and must not be imputed merely to force PASS.
-
-Two complementary health metrics are retained:
-
-```text
-weighted DQ score = 100 * sum(passed rule evaluations) / sum(evaluated values)
-check pass rate = 100 * passed checks / total checks
-```
-
-The weighted score must be displayed to three decimals because rounding it to an integer can show 100 while warnings still exist.
-
-## Dashboards and Genie
-
-`oulad-genie-pack/00_prepare_genie_sources.sql` creates the governed sources used by both dashboards and Genie spaces.
-
-- `dashboards/business_dashboard.sql`: accurate KPI and visualization datasets using additive numerators and denominators.
-- `dashboards/data_quality_dashboard.sql`: current suite, dimension, dataset, problem, ownership, volume, and history datasets.
-- `dashboards/BUSINESS_DASHBOARD_REVISION_PROMPT.md`: exact Databricks dashboard changes.
-- `dashboards/DATA_QUALITY_DASHBOARD_REVISION_PROMPT.md`: exact DQ dashboard changes.
-
-After changing a dashboard in Databricks, export it again and replace the matching `.lvdash.json` file in `dashboards/`.
-
-## Repository structure
-
-```text
-dashboards/             Dashboard SQL, exports, and revision prompts
-docs/                   Architecture, model, quality, and conventions
-notebooks/              Thin Databricks runners
-oulad-genie-pack/       Governed dashboard and natural-language sources
-queries/                Safe ad-hoc analysis
-scripts/                Repository checks
-src/                    Production transformation and DQ-view SQL
-tests/                  Persistent validation suites and gates
-```
-
-## Local checks
+## Local structural checks
 
 ```bash
 python3 scripts/check_repository.py
-python3 -m pip install -r requirements-dev.txt
 ```
-
-SQLFluff currently provides parser and development feedback. Do not claim that the repository passes a strict style lint until a project ruleset is committed and existing style findings are resolved.
 
 ## Source and license
 
-OULAD is published by OU Analyse and archived on Figshare under CC BY 4.0. Preserve source attribution when sharing derived work.
+OULAD is published by OU Analyse and archived on Figshare under CC BY 4.0.
+Preserve source attribution when sharing derived work.

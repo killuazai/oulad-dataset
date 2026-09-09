@@ -1,35 +1,60 @@
 -- Databricks notebook source
 -- Name: 08 - Gold Validation
--- Purpose: Persist mart-level grain and conformed-dimension checks and enforce critical gates.
+-- Purpose: Validate exactly five dimensions and two facts before registering relationships.
 -- Grain: One row per data-quality check and pipeline run.
 
 INSERT INTO IDENTIFIER(dq_namespace || '.dq_check_results')
 WITH checks AS (
   SELECT
-    'dim_module_presentation' AS dataset_name, 'module_presentation_key' AS column_name,
-    'module presentation key is complete and unique' AS check_name,
+    'dim_student' AS dataset_name, 'student_key' AS column_name,
+    'student key is complete and unique' AS check_name,
     'UNIQUENESS' AS quality_dimension, 'NULL_UNIQUE' AS check_type,
-    'One non-null key per module presentation' AS expectation,
+    'One non-null key per student' AS expectation,
     CAST(0 AS DECIMAL(7, 3)) AS threshold_pct, 'CRITICAL' AS severity,
     'data_engineering' AS check_owner, COUNT(*) AS total_count,
-    COUNT_IF(module_presentation_key IS NULL)
-      + COUNT(*) - COUNT(DISTINCT module_presentation_key) AS failed_count
-  FROM IDENTIFIER(mart_namespace || '.dim_module_presentation')
-
-  UNION ALL
-
-  SELECT
-    'dim_student', 'student_key', 'student key is complete and unique',
-    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per student',
-    0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(student_key IS NULL OR id_student IS NULL)
-      + COUNT(*) - COUNT(DISTINCT student_key)
+      + COUNT(*) - COUNT(DISTINCT student_key) AS failed_count
   FROM IDENTIFIER(mart_namespace || '.dim_student')
 
   UNION ALL
 
   SELECT
-    'dim_demographics', 'demographics_key', 'demographic profile key is complete and unique',
+    'dim_course', 'course_key', 'course key is complete and unique',
+    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per code_module',
+    0, 'CRITICAL', 'data_engineering', COUNT(*),
+    COUNT_IF(course_key IS NULL OR code_module IS NULL)
+      + COUNT(*) - COUNT(DISTINCT course_key)
+  FROM IDENTIFIER(mart_namespace || '.dim_course')
+
+  UNION ALL
+
+  SELECT
+    'dim_module_presentation', 'module_presentation_key, course_key',
+    'module presentation grain and course key are valid',
+    'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
+    'One presentation row with a valid course key',
+    0, 'CRITICAL', 'data_engineering', COUNT(*),
+    COUNT_IF(course.course_key IS NULL OR presentation.module_presentation_key IS NULL)
+      + COUNT(*) - COUNT(DISTINCT presentation.module_presentation_key)
+  FROM IDENTIFIER(mart_namespace || '.dim_module_presentation') AS presentation
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_course') AS course
+    ON presentation.course_key = course.course_key
+
+  UNION ALL
+
+  SELECT
+    'dim_date', 'date_key', 'relative date key is complete and unique',
+    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per relative course day',
+    0, 'CRITICAL', 'data_engineering', COUNT(*),
+    COUNT_IF(date_key IS NULL OR relative_day IS NULL)
+      + COUNT(*) - COUNT(DISTINCT date_key)
+  FROM IDENTIFIER(mart_namespace || '.dim_date')
+
+  UNION ALL
+
+  SELECT
+    'dim_demographics', 'demographics_key',
+    'demographic profile key is complete and unique',
     'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per distinct demographic profile',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(demographics_key IS NULL)
@@ -39,123 +64,90 @@ WITH checks AS (
   UNION ALL
 
   SELECT
-    'dim_assessment', 'assessment_key', 'assessment key is complete and unique',
-    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per assessment',
-    0, 'CRITICAL', 'data_engineering', COUNT(*),
-    COUNT_IF(assessment_key IS NULL) + COUNT(*) - COUNT(DISTINCT assessment_key)
-  FROM IDENTIFIER(mart_namespace || '.dim_assessment')
-
-  UNION ALL
-
-  SELECT
-    'dim_vle_activity', 'vle_activity_key', 'VLE activity key is complete and unique',
-    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per VLE activity in a module presentation',
-    0, 'CRITICAL', 'data_engineering', COUNT(*),
-    COUNT_IF(vle_activity_key IS NULL) + COUNT(*) - COUNT(DISTINCT vle_activity_key)
-  FROM IDENTIFIER(mart_namespace || '.dim_vle_activity')
-
-  UNION ALL
-
-  SELECT
-    'dim_relative_date', 'relative_date_key', 'relative date key is complete and unique',
-    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per relative course day',
-    0, 'CRITICAL', 'data_engineering', COUNT(*),
-    COUNT_IF(relative_date_key IS NULL) + COUNT(*) - COUNT(DISTINCT relative_date_key)
-  FROM IDENTIFIER(mart_namespace || '.dim_relative_date')
-
-  UNION ALL
-
-  SELECT
-    'fact_student_enrollment', 'student_enrollment_key',
-    'enrollment grain and direct dimension keys are valid',
+    'fact_assessments', 'assessment_submission_key',
+    'assessment fact grain and dimension keys are valid',
     'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
-    'One enrollment row with valid student, demographic profile, module presentation, and optional dates',
+    'One submission with valid student, course, presentation, demographics, and relative dates',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(
-      student.student_key IS NULL OR demographic.demographics_key IS NULL
-      OR module.module_presentation_key IS NULL
-      OR (fact.registration_date_key IS NOT NULL AND registration_date.relative_date_key IS NULL)
-      OR (fact.unregistration_date_key IS NOT NULL AND unregistration_date.relative_date_key IS NULL)
-    ) + COUNT(*) - COUNT(DISTINCT fact.student_enrollment_key)
-  FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment') AS fact
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
-    ON fact.student_key = student.student_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
-    ON fact.demographics_key = demographic.demographics_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
-    ON fact.module_presentation_key = module.module_presentation_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS registration_date
-    ON fact.registration_date_key = registration_date.relative_date_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS unregistration_date
-    ON fact.unregistration_date_key = unregistration_date.relative_date_key
-
-  UNION ALL
-
-  SELECT
-    'fact_assessment_submission', 'assessment_submission_key',
-    'assessment fact grain and direct dimension keys are valid',
-    'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
-    'One submission row with valid assessment, student, demographics, module, and relative dates',
-    0, 'CRITICAL', 'data_engineering', COUNT(*),
-    COUNT_IF(
-      assessment.assessment_key IS NULL OR student.student_key IS NULL
-      OR demographic.demographics_key IS NULL
-      OR module.module_presentation_key IS NULL OR submitted_date.relative_date_key IS NULL
-      OR (fact.due_date_key IS NOT NULL AND due_date.relative_date_key IS NULL)
+      student.student_key IS NULL OR course.course_key IS NULL
+      OR presentation.module_presentation_key IS NULL
+      OR demographic.demographics_key IS NULL OR submission_date.date_key IS NULL
+      OR (fact.due_date_key IS NOT NULL AND due_date.date_key IS NULL)
+      OR fact.course_key <> presentation.course_key
       OR fact.score < 0 OR fact.score > 100
+      OR fact.assessment_weight < 0 OR fact.assessment_weight > 100
     ) + COUNT(*) - COUNT(DISTINCT fact.assessment_submission_key)
-  FROM IDENTIFIER(mart_namespace || '.fact_assessment_submission') AS fact
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_assessment') AS assessment
-    ON fact.assessment_key = assessment.assessment_key
+  FROM IDENTIFIER(mart_namespace || '.fact_assessments') AS fact
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
     ON fact.student_key = student.student_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_course') AS course
+    ON fact.course_key = course.course_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS presentation
+    ON fact.module_presentation_key = presentation.module_presentation_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
     ON fact.demographics_key = demographic.demographics_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
-    ON fact.module_presentation_key = module.module_presentation_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS submitted_date
-    ON fact.submitted_date_key = submitted_date.relative_date_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS due_date
-    ON fact.due_date_key = due_date.relative_date_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS submission_date
+    ON fact.submission_date_key = submission_date.date_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS due_date
+    ON fact.due_date_key = due_date.date_key
 
   UNION ALL
 
   SELECT
-    'fact_vle_interaction', 'vle_interaction_key',
-    'VLE fact grain and direct dimension keys are valid',
+    'fact_vle_interactions', 'vle_interaction_key',
+    'VLE fact grain and dimension keys are valid',
     'REFERENTIAL_INTEGRITY', 'UNIQUE_FOREIGN_KEY',
-    'One student-site-day row with valid activity, student, demographics, module, and relative date',
+    'One student-site-day row with valid student, course, presentation, demographics, and date',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(
-      activity.vle_activity_key IS NULL OR student.student_key IS NULL
-      OR demographic.demographics_key IS NULL
-      OR module.module_presentation_key IS NULL
-      OR activity_date.relative_date_key IS NULL OR fact.sum_click <= 0
+      student.student_key IS NULL OR course.course_key IS NULL
+      OR presentation.module_presentation_key IS NULL
+      OR demographic.demographics_key IS NULL OR activity_date.date_key IS NULL
+      OR fact.course_key <> presentation.course_key OR fact.sum_click <= 0
     ) + COUNT(*) - COUNT(DISTINCT fact.vle_interaction_key)
-  FROM IDENTIFIER(mart_namespace || '.fact_vle_interaction') AS fact
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_vle_activity') AS activity
-    ON fact.vle_activity_key = activity.vle_activity_key
+  FROM IDENTIFIER(mart_namespace || '.fact_vle_interactions') AS fact
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
     ON fact.student_key = student.student_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_course') AS course
+    ON fact.course_key = course.course_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS presentation
+    ON fact.module_presentation_key = presentation.module_presentation_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
     ON fact.demographics_key = demographic.demographics_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS module
-    ON fact.module_presentation_key = module.module_presentation_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_relative_date') AS activity_date
-    ON fact.activity_date_key = activity_date.relative_date_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS activity_date
+    ON fact.activity_date_key = activity_date.date_key
 
   UNION ALL
 
   SELECT
-    'fact_student_enrollment', 'row_count', 'Gold enrollments reconcile with Silver',
+    'fact_assessments', 'row_count', 'Gold assessments reconcile with Silver',
     'CONSISTENCY', 'VOLUME_RECONCILIATION',
-    'Gold enrollment count equals clean student enrollment count',
+    'Gold assessment count equals clean submission count',
     0, 'CRITICAL', 'data_engineering',
-    (SELECT COUNT(*) FROM IDENTIFIER(clean_namespace || '.student_info_clean')),
+    (SELECT COUNT(*) FROM IDENTIFIER(clean_namespace || '.student_assessment_clean')),
     ABS(
-      (SELECT COUNT(*) FROM IDENTIFIER(mart_namespace || '.fact_student_enrollment'))
-      - (SELECT COUNT(*) FROM IDENTIFIER(clean_namespace || '.student_info_clean'))
+      (SELECT COUNT(*) FROM IDENTIFIER(mart_namespace || '.fact_assessments'))
+      - (SELECT COUNT(*) FROM IDENTIFIER(clean_namespace || '.student_assessment_clean'))
     )
+
+  UNION ALL
+
+  SELECT
+    'fact_vle_interactions', 'row_count, sum_click', 'Gold VLE controls reconcile with Silver',
+    'CONSISTENCY', 'CONTROL_TOTAL_RECONCILIATION',
+    'Gold VLE row count and click total equal the clean daily interaction controls',
+    0, 'CRITICAL', 'data_engineering', 2,
+    CASE WHEN silver.row_count <> gold.row_count THEN 1 ELSE 0 END
+      + CASE WHEN silver.click_sum <> gold.click_sum THEN 1 ELSE 0 END
+  FROM (
+    SELECT COUNT(*) AS row_count, SUM(sum_click) AS click_sum
+    FROM IDENTIFIER(clean_namespace || '.student_vle_clean')
+  ) AS silver
+  CROSS JOIN (
+    SELECT COUNT(*) AS row_count, SUM(sum_click) AS click_sum
+    FROM IDENTIFIER(mart_namespace || '.fact_vle_interactions')
+  ) AS gold
 ),
 scored AS (
   SELECT
@@ -174,8 +166,11 @@ scored AS (
 classified AS (
   SELECT
     *,
-    CASE WHEN total_count = 0 OR failure_pct > threshold_pct THEN 'FAIL'
-      WHEN failed_count > 0 THEN 'WARNING' ELSE 'PASS' END AS status
+    CASE
+      WHEN total_count = 0 OR failure_pct > threshold_pct THEN 'FAIL'
+      WHEN failed_count > 0 THEN 'WARNING'
+      ELSE 'PASS'
+    END AS status
   FROM scored
 )
 SELECT

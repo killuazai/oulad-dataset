@@ -1,16 +1,34 @@
 -- Databricks notebook source
 -- Name: 06 - Gold Dimensions
--- Purpose: Build conformed dimensions that every BI fact joins to directly.
--- Grain: One row per business entity represented by each physical dimension.
+-- Purpose: Build the five conformed dimensions required by the OULAD assignment.
+-- Grain: One row per student, course, module presentation, relative day, or demographic profile.
 
 DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
 DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
+
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_student')
+USING DELTA
+AS
+SELECT DISTINCT
+  SHA2(CAST(id_student AS STRING), 256) AS student_key,
+  id_student
+FROM IDENTIFIER(clean_namespace || '.student_info_clean');
+
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_course')
+USING DELTA
+AS
+SELECT DISTINCT
+  SHA2(code_module, 256) AS course_key,
+  code_module
+FROM IDENTIFIER(clean_namespace || '.courses_clean');
 
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_module_presentation')
 USING DELTA
 AS
 SELECT
-  SHA2(CONCAT_WS('||', code_module, code_presentation), 256) AS module_presentation_key,
+  SHA2(CONCAT_WS('||', code_module, code_presentation), 256)
+    AS module_presentation_key,
+  SHA2(code_module, 256) AS course_key,
   code_module,
   code_presentation,
   CAST(SUBSTRING(code_presentation, 1, 4) AS INT) AS presentation_year,
@@ -22,14 +40,6 @@ SELECT
   END AS presentation_term_name,
   module_presentation_length
 FROM IDENTIFIER(clean_namespace || '.courses_clean');
-
-CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_student')
-USING DELTA
-AS
-SELECT DISTINCT
-  SHA2(CAST(id_student AS STRING), 256) AS student_key,
-  id_student
-FROM IDENTIFIER(clean_namespace || '.student_info_clean');
 
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_demographics')
 USING DELTA
@@ -55,36 +65,7 @@ SELECT DISTINCT
   disability
 FROM IDENTIFIER(clean_namespace || '.student_info_clean');
 
-CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_assessment')
-USING DELTA
-AS
-SELECT
-  SHA2(CAST(id_assessment AS STRING), 256) AS assessment_key,
-  id_assessment,
-  code_module,
-  code_presentation,
-  assessment_type,
-  assessment_date,
-  weight
-FROM IDENTIFIER(clean_namespace || '.assessments_clean');
-
-CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_vle_activity')
-USING DELTA
-AS
-SELECT
-  SHA2(
-    CONCAT_WS('||', code_module, code_presentation, CAST(id_site AS STRING)),
-    256
-  ) AS vle_activity_key,
-  id_site,
-  code_module,
-  code_presentation,
-  activity_type,
-  week_from,
-  week_to
-FROM IDENTIFIER(clean_namespace || '.vle_clean');
-
-CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_relative_date')
+CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_date')
 USING DELTA
 AS
 WITH date_bounds AS (
@@ -98,12 +79,6 @@ WITH date_bounds AS (
     UNION ALL
     SELECT activity_date
     FROM IDENTIFIER(clean_namespace || '.student_vle_clean')
-    UNION ALL
-    SELECT date_registration
-    FROM IDENTIFIER(clean_namespace || '.student_registration_clean')
-    UNION ALL
-    SELECT date_unregistration
-    FROM IDENTIFIER(clean_namespace || '.student_registration_clean')
   ) AS source_dates
   WHERE relative_day IS NOT NULL
 ),
@@ -112,7 +87,7 @@ relative_days AS (
   FROM date_bounds
 )
 SELECT
-  SHA2(CAST(relative_day AS STRING), 256) AS relative_date_key,
+  SHA2(CAST(relative_day AS STRING), 256) AS date_key,
   relative_day,
   FLOOR(relative_day / 7) AS relative_week,
   CASE
@@ -124,43 +99,27 @@ SELECT
   END AS course_phase
 FROM relative_days;
 
--- Role-playing views keep one physical date dimension while providing unambiguous BI relationships.
-CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_registration_date') AS
-SELECT
-  relative_date_key AS registration_date_key,
-  relative_day AS registration_relative_day,
-  relative_week AS registration_relative_week,
-  course_phase AS registration_course_phase
-FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
-
-CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_unregistration_date') AS
-SELECT
-  relative_date_key AS unregistration_date_key,
-  relative_day AS unregistration_relative_day,
-  relative_week AS unregistration_relative_week,
-  course_phase AS unregistration_course_phase
-FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
-
+-- These are role-playing views of one physical Date dimension, not extra dimensions.
 CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_submission_date') AS
 SELECT
-  relative_date_key AS submitted_date_key,
-  relative_day AS submitted_relative_day,
-  relative_week AS submitted_relative_week,
-  course_phase AS submitted_course_phase
-FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
+  date_key AS submission_date_key,
+  relative_day AS submission_relative_day,
+  relative_week AS submission_relative_week,
+  course_phase AS submission_course_phase
+FROM IDENTIFIER(mart_namespace || '.dim_date');
 
 CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_due_date') AS
 SELECT
-  relative_date_key AS due_date_key,
+  date_key AS due_date_key,
   relative_day AS due_relative_day,
   relative_week AS due_relative_week,
   course_phase AS due_course_phase
-FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
+FROM IDENTIFIER(mart_namespace || '.dim_date');
 
 CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_activity_date') AS
 SELECT
-  relative_date_key AS activity_date_key,
+  date_key AS activity_date_key,
   relative_day AS activity_relative_day,
   relative_week AS activity_relative_week,
   course_phase AS activity_course_phase
-FROM IDENTIFIER(mart_namespace || '.dim_relative_date');
+FROM IDENTIFIER(mart_namespace || '.dim_date');
