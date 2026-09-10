@@ -6,19 +6,21 @@
 |---|---|---|
 | `dim_student` | `student_key` | `id_student` |
 | `dim_course` | `course_key` | `code_module` |
-| `dim_module_presentation` | `module_presentation_key` | `course_key`, presentation code, year, term, length |
+| `dim_module_presentation` | `module_presentation_key` | `course_key`, module code, presentation code, length |
 | `dim_date` | `date_key` | relative day, relative week, course phase |
-| `dim_demographics` | `demographics_key` | gender, region, education, IMD band, age band, disability |
+| `dim_demographics` | `demographics_key` | gender, region, education, IMD band, age band, disability, final result, withdrawal flag |
 
 ## Core facts
 
 | Fact | Grain | Main measures and descriptors |
 |---|---|---|
-| `fact_assessments` | Student assessment submission | assessment ID/type, decimal weight, score, pass flag, lateness, submission count |
-| `fact_vle_interactions` | Student, VLE site, relative day | site ID/type, availability weeks, clicks, student-site-day count |
+| `fact_assessments` | Student assessment submission | assessment ID/type, decimal weight, banked flag, score |
+| `fact_vle_interactions` | Student, module presentation, VLE site, relative day | site ID/type and aggregated clicks |
 
-All fact foreign keys use the `<dimension>_key` convention. The two assessment
-date roles and the VLE activity date all reference `dim_date.date_key`.
+All fact foreign keys use the `<dimension>_key` convention except
+`activity_date_id`, whose name follows the approved final diagram. The two
+assessment date roles and the VLE activity date all reference
+`dim_date.date_key`.
 
 ## Supporting Analytics models
 

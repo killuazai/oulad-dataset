@@ -78,24 +78,26 @@ ORDER BY average_total_clicks DESC;
 
 -- Metabase question 6: Weekly VLE activity
 SELECT
-  interaction.code_module,
-  interaction.code_presentation,
-  CONCAT(interaction.code_module, ' - ', interaction.code_presentation)
+  presentation.code_module,
+  presentation.code_presentation,
+  CONCAT(presentation.code_module, ' - ', presentation.code_presentation)
     AS module_presentation,
   activity_date.relative_week,
   SUM(interaction.sum_click) AS total_clicks,
   COUNT(DISTINCT interaction.student_key) AS active_students
 FROM `ftw-week-07`.`03-mart`.fact_vle_interactions AS interaction
 INNER JOIN `ftw-week-07`.`03-mart`.dim_date AS activity_date
-  ON interaction.activity_date_key = activity_date.date_key
+  ON interaction.activity_date_id = activity_date.date_key
+INNER JOIN `ftw-week-07`.`03-mart`.dim_module_presentation AS presentation
+  ON interaction.module_presentation_key = presentation.module_presentation_key
 WHERE 1 = 1
   [[AND {{code_module}}]]
   [[AND {{code_presentation}}]]
 GROUP BY
-  interaction.code_module,
-  interaction.code_presentation,
+  presentation.code_module,
+  presentation.code_presentation,
   activity_date.relative_week
-ORDER BY interaction.code_module, interaction.code_presentation, activity_date.relative_week;
+ORDER BY presentation.code_module, presentation.code_presentation, activity_date.relative_week;
 
 -- Metabase question 7: Assessment performance by type
 SELECT

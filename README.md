@@ -18,6 +18,8 @@ analytics for performance, engagement, cohorts, and dropout risk.
 
 ## Architecture
 
+![Final pipeline with validation gates and both dashboards](docs/assets/final-pipeline-with-dq.svg)
+
 ```mermaid
 flowchart LR
     S[Seven OULAD CSVs] --> B[Bronze / Raw]
@@ -28,11 +30,12 @@ flowchart LR
     D --> QG[Gold Validation]
     QG --> A[Analytics and cohort views]
     A --> QA[Analytics Validation including Accuracy]
-    QA --> M[Metabase Dashboard]
-    QB --> DQ[Data Quality Dashboard]
-    QS --> DQ
-    QG --> DQ
-    QA --> DQ
+    QA --> M[Metabase Business Dashboard]
+    QB --> DQR[DQ check results]
+    QS --> DQR
+    QG --> DQR
+    QA --> DQR
+    DQR --> DQ[Data Quality Dashboard]
 ```
 
 Accuracy is consolidated in Analytics validation as cross-layer control-total
@@ -44,13 +47,13 @@ source.
 The core mart contains exactly two facts and five dimensions:
 
 - `fact_assessments`: one student assessment submission; event-based fact.
-- `fact_vle_interactions`: one student, VLE site, and relative day after daily
-  click aggregation; aggregated fact.
+- `fact_vle_interactions`: one student, module presentation, VLE site, and
+  relative day after daily click aggregation; aggregated fact.
 - `dim_student`: one anonymized student identity.
 - `dim_course`: one module code.
 - `dim_module_presentation`: one specific offering of a course.
 - `dim_date`: one relative course day.
-- `dim_demographics`: one distinct demographic profile.
+- `dim_demographics`: one distinct demographic and final-outcome profile.
 
 Both facts connect directly to all five dimensions. `course_key` on
 `dim_module_presentation` is tested for consistency in dbt, but the BI model
@@ -67,11 +70,16 @@ represents a specific run, such as `AAA-2013J`, whose length may differ from
 another run. This follows the assignment's explicit dimension list while
 keeping presentation-level attributes out of the course grain.
 
+The approved relationship diagram is the contract implemented by both dbt and
+the Databricks SQL compatibility build:
+
+![Final OULAD star schema](docs/assets/final-star-schema.png)
+
 ## Dates
 
 OULAD date fields are offsets from the start of a module presentation, not
 calendar dates. `submission_date_key` and `due_date_key` in
-`fact_assessments`, and `activity_date_key` in `fact_vle_interactions`, are
+`fact_assessments`, and `activity_date_id` in `fact_vle_interactions`, are
 foreign keys to the same physical `dim_date.date_key`. Negative relative days
 are valid pre-presentation activity.
 
@@ -94,6 +102,9 @@ dbt build --select path:models/mart
    outputs, run consolidated Accuracy checks, and refresh governed views.
 7. Build the Metabase dashboard using `metabase/README.md`.
 
+The exact Databricks task order, dbt command, permissions, and stop conditions
+are documented in `docs/pipeline.md`.
+
 For Databricks-only demonstration, `notebooks/00_run_full_pipeline.sql` builds
 an equivalent mart from the mirrored SQL in `src/03_gold/sql/`. The dbt models
 remain the canonical assignment implementation.
@@ -107,8 +118,9 @@ remain the canonical assignment implementation.
 - Silver consolidates repeated VLE rows to one student-site-relative-day row
   while preserving the total `sum_click`.
 - Demographics stays separate from Student because some students have different
-  profile values across module presentations. A surrogate demographics key by
-  itself is not an SCD Type 2 implementation.
+  profile and outcome values across module presentations. The approved hash
+  includes `final_result`, and `is_withdrawn` is derived from it. A surrogate
+  key by itself is not an SCD Type 2 implementation.
 
 ## Optional Databricks portfolio assets
 

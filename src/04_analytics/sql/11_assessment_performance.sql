@@ -10,24 +10,40 @@ CREATE OR REPLACE TABLE IDENTIFIER(analytics_namespace || '.assessment_performan
 USING DELTA
 AS
 SELECT
-  module_presentation_key,
-  course_key,
-  code_module,
-  code_presentation,
-  assessment_type,
+  fact.module_presentation_key,
+  fact.course_key,
+  presentation.code_module,
+  presentation.code_presentation,
+  fact.assessment_type,
   COUNT(*) AS submission_count,
-  COUNT(DISTINCT student_key) AS submitting_students,
-  COUNT_IF(score IS NOT NULL) AS scored_submission_count,
-  COUNT_IF(score IS NULL) AS missing_score_count,
-  SUM(COALESCE(score, 0)) AS score_sum,
-  COUNT_IF(score IS NOT NULL AND passed_assessment) AS passed_submission_count,
-  COUNT_IF(due_relative_day IS NOT NULL) AS dated_submission_count,
-  COUNT_IF(due_relative_day IS NOT NULL AND days_from_due_date > 0) AS late_submission_count,
-  AVG(score) AS average_score,
-  PERCENTILE_APPROX(score, 0.5) AS median_score,
-  1.0 * COUNT_IF(score IS NOT NULL AND passed_assessment)
-    / NULLIF(COUNT_IF(score IS NOT NULL), 0) AS pass_rate,
-  1.0 * COUNT_IF(due_relative_day IS NOT NULL AND days_from_due_date > 0)
-    / NULLIF(COUNT_IF(due_relative_day IS NOT NULL), 0) AS late_submission_rate
-FROM IDENTIFIER(mart_namespace || '.fact_assessments')
-GROUP BY module_presentation_key, course_key, code_module, code_presentation, assessment_type;
+  COUNT(DISTINCT fact.student_key) AS submitting_students,
+  COUNT_IF(fact.score IS NOT NULL) AS scored_submission_count,
+  COUNT_IF(fact.score IS NULL) AS missing_score_count,
+  SUM(COALESCE(fact.score, 0)) AS score_sum,
+  COUNT_IF(fact.score IS NOT NULL AND fact.score >= 40) AS passed_submission_count,
+  COUNT_IF(fact.due_date_key IS NOT NULL) AS dated_submission_count,
+  COUNT_IF(
+    fact.due_date_key IS NOT NULL
+    AND submission_date.relative_day > due_date.relative_day
+  ) AS late_submission_count,
+  AVG(fact.score) AS average_score,
+  PERCENTILE_APPROX(fact.score, 0.5) AS median_score,
+  1.0 * COUNT_IF(fact.score IS NOT NULL AND fact.score >= 40)
+    / NULLIF(COUNT_IF(fact.score IS NOT NULL), 0) AS pass_rate,
+  1.0 * COUNT_IF(
+    fact.due_date_key IS NOT NULL
+    AND submission_date.relative_day > due_date.relative_day
+  ) / NULLIF(COUNT_IF(fact.due_date_key IS NOT NULL), 0) AS late_submission_rate
+FROM IDENTIFIER(mart_namespace || '.fact_assessments') AS fact
+INNER JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS presentation
+  ON fact.module_presentation_key = presentation.module_presentation_key
+INNER JOIN IDENTIFIER(mart_namespace || '.dim_date') AS submission_date
+  ON fact.submission_date_key = submission_date.date_key
+LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS due_date
+  ON fact.due_date_key = due_date.date_key
+GROUP BY
+  fact.module_presentation_key,
+  fact.course_key,
+  presentation.code_module,
+  presentation.code_presentation,
+  fact.assessment_type;

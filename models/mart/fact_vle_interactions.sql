@@ -17,21 +17,15 @@ select
     concat_ws(
       '||', coalesce(student.gender, 'UNKNOWN'), coalesce(student.region, 'UNKNOWN'),
       coalesce(student.highest_education, 'UNKNOWN'), coalesce(student.imd_band, 'UNKNOWN'),
-      coalesce(student.age_band, 'UNKNOWN'), coalesce(student.disability, 'UNKNOWN')
+      coalesce(student.age_band, 'UNKNOWN'), coalesce(student.disability, 'UNKNOWN'),
+      coalesce(student.final_result, 'UNKNOWN')
     ),
     256
   ) as demographics_key,
-  sha2(cast(interaction.activity_date as string), 256) as activity_date_key,
-  interaction.code_module,
-  interaction.code_presentation,
-  interaction.id_student,
-  interaction.id_site,
+  sha2(cast(interaction.activity_date as string), 256) as activity_date_id,
+  cast(interaction.id_site as bigint) as id_site,
   activity.activity_type,
-  activity.week_from as available_week_from,
-  activity.week_to as available_week_to,
-  interaction.activity_date as activity_relative_day,
-  interaction.sum_click,
-  1 as student_site_day_count
+  cast(interaction.sum_click as bigint) as sum_click
 from {{ source('oulad_clean', 'student_vle_clean') }} as interaction
 inner join {{ source('oulad_clean', 'vle_clean') }} as activity
   on interaction.code_module = activity.code_module

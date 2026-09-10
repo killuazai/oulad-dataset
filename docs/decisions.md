@@ -27,10 +27,12 @@ reused for submission, due, and activity roles; no calendar date is invented.
 
 ## Student and demographics stay separate
 
-Some students have different source profiles across module presentations.
-Separating identity from the demographic profile avoids choosing one arbitrary
-profile. The demographic surrogate key is not labeled SCD Type 2 because there
-are no reliable effective dates or current-row indicator.
+Some students have different source profiles and outcomes across module
+presentations. The approved schema keeps `final_result` and derived
+`is_withdrawn` in `dim_demographics`; therefore `final_result` is included in
+the deterministic demographic hash to prevent ambiguous joins. The surrogate
+key is not labeled SCD Type 2 because there are no reliable effective dates or
+current-row indicator.
 
 ## Full refresh and quality gates
 
