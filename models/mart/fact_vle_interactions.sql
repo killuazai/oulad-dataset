@@ -17,8 +17,7 @@ select
     concat_ws(
       '||', coalesce(student.gender, 'UNKNOWN'), coalesce(student.region, 'UNKNOWN'),
       coalesce(student.highest_education, 'UNKNOWN'), coalesce(student.imd_band, 'UNKNOWN'),
-      coalesce(student.age_band, 'UNKNOWN'), coalesce(student.disability, 'UNKNOWN'),
-      coalesce(student.final_result, 'UNKNOWN')
+      coalesce(student.age_band, 'UNKNOWN'), coalesce(student.disability, 'UNKNOWN')
     ),
     256
   ) as demographics_key,

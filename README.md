@@ -53,7 +53,7 @@ The core mart contains exactly two facts and five dimensions:
 - `dim_course`: one module code.
 - `dim_module_presentation`: one specific offering of a course.
 - `dim_date`: one relative course day.
-- `dim_demographics`: one distinct demographic and final-outcome profile.
+- `dim_demographics`: one distinct demographic profile.
 
 Both facts connect directly to all five dimensions. `course_key` on
 `dim_module_presentation` is tested for consistency in dbt, but the BI model
@@ -61,7 +61,9 @@ does not require a dimension-to-dimension join. See `docs/data_model.md`.
 
 `student_cohort` is a supporting table in `04-analytics`, not a third Gold
 fact. It keeps all enrolled students—including learners with no assessment or
-VLE event—so cohort and dropout metrics have the correct denominator.
+VLE event—so cohort and dropout metrics have the correct denominator. It owns
+`final_result` and derived `is_withdrawn` because their grain is one student
+enrollment per module presentation, not one demographic profile.
 
 ## Why Course and Module Presentation are separate
 
@@ -73,7 +75,7 @@ keeping presentation-level attributes out of the course grain.
 The approved relationship diagram is the contract implemented by both dbt and
 the Databricks SQL compatibility build:
 
-![Final OULAD star schema](docs/assets/final-star-schema.png)
+![Final OULAD star schema and supporting enrollment model](docs/assets/final-star-schema.svg)
 
 ## Dates
 
@@ -117,10 +119,10 @@ remain the canonical assignment implementation.
   `DECIMAL(5,2)` rather than `INT`.
 - Silver consolidates repeated VLE rows to one student-site-relative-day row
   while preserving the total `sum_click`.
-- Demographics stays separate from Student because some students have different
-  profile and outcome values across module presentations. The approved hash
-  includes `final_result`, and `is_withdrawn` is derived from it. A surrogate
-  key by itself is not an SCD Type 2 implementation.
+- Demographics stays separate from Student because profile values can differ
+  across module presentations. Its deterministic hash includes demographic
+  attributes only. Enrollment outcome fields live in Analytics
+  `student_cohort`, where their student-presentation grain is preserved.
 
 ## Optional Databricks portfolio assets
 

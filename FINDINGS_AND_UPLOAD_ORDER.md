@@ -21,8 +21,10 @@ This revision corrects those gaps:
    Quality dashboards.
 9. Databricks SQL, Analytics, DQ, and Genie references now use the new names.
 10. Accuracy remains consolidated in Analytics validation.
-11. The approved final schema adds `final_result` and derived `is_withdrawn` to
-    `dim_demographics`; the deterministic key includes `final_result`.
+11. `final_result` and derived `is_withdrawn` belong in Analytics
+    `student_cohort` at one student + module + presentation enrollment grain.
+    `dim_demographics` and its deterministic key contain demographic attributes
+    only.
 12. The VLE fact grain is module + presentation + student + site + relative day,
     and its Date foreign key follows the approved `activity_date_id` name.
 

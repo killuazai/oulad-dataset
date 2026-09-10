@@ -8,7 +8,7 @@
 | `dim_course` | `course_key` | `code_module` |
 | `dim_module_presentation` | `module_presentation_key` | `course_key`, module code, presentation code, length |
 | `dim_date` | `date_key` | relative day, relative week, course phase |
-| `dim_demographics` | `demographics_key` | gender, region, education, IMD band, age band, disability, final result, withdrawal flag |
+| `dim_demographics` | `demographics_key` | gender, region, education, IMD band, age band, disability |
 
 ## Core facts
 
@@ -26,7 +26,7 @@ assessment date roles and the VLE activity date all reference
 
 | Model | Grain | Purpose |
 |---|---|---|
-| `student_cohort` | Student and module presentation | Complete cohort/dropout denominator |
+| `student_cohort` | Student and module presentation | Complete cohort/dropout denominator, final result, and withdrawal flag |
 | `learner_outcomes` | Module presentation | Enrollment and outcome totals |
 | `student_engagement` | Student and module presentation | Engagement related to final performance |
 | `assessment_performance` | Module presentation and assessment type | Additive assessment controls and rates |

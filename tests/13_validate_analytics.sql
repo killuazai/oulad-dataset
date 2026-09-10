@@ -78,6 +78,28 @@ analytics_assessment AS (
 ),
 checks AS (
   SELECT
+    'student_cohort' AS dataset_name,
+    'student_cohort_key, final_result, is_withdrawn' AS column_name,
+    'student enrollment grain and outcome fields are valid' AS check_name,
+    'VALIDITY' AS quality_dimension,
+    'UNIQUE_ACCEPTED_VALUES_DERIVATION' AS check_type,
+    'One row per student enrollment; outcome is accepted and withdrawal flag agrees' AS expectation,
+    CAST(0 AS DECIMAL(7, 3)) AS threshold_pct,
+    'CRITICAL' AS severity,
+    'analytics' AS check_owner,
+    COUNT(*) AS total_count,
+    COUNT_IF(
+      student_cohort_key IS NULL
+      OR final_result NOT IN ('Withdrawn', 'Fail', 'Pass', 'Distinction')
+      OR is_withdrawn IS NULL
+      OR is_withdrawn <> (final_result = 'Withdrawn')
+      OR enrollment_count <> 1
+    ) + COUNT(*) - COUNT(DISTINCT student_cohort_key) AS failed_count
+  FROM IDENTIFIER(analytics_namespace || '.student_cohort')
+
+  UNION ALL
+
+  SELECT
     'learner_outcomes' AS dataset_name,
     'module_presentation_key' AS column_name,
     'learner outcome metrics are complete and bounded' AS check_name,

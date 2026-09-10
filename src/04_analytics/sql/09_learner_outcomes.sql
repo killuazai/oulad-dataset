@@ -23,8 +23,7 @@ SELECT
     CONCAT_WS(
       '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
-      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN'),
-      COALESCE(student.final_result, 'UNKNOWN')
+      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
     ),
     256
   ) AS demographics_key,
@@ -36,6 +35,7 @@ SELECT
   student.num_of_prev_attempts,
   student.studied_credits,
   student.final_result,
+  CAST(student.final_result = 'Withdrawn' AS BOOLEAN) AS is_withdrawn,
   CASE WHEN student.final_result = 'Withdrawn' THEN 1 ELSE 0 END AS withdrawn_count,
   CASE WHEN student.final_result = 'Fail' THEN 1 ELSE 0 END AS failed_count,
   CASE WHEN student.final_result = 'Pass' THEN 1 ELSE 0 END AS passed_count,

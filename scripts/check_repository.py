@@ -51,6 +51,7 @@ REQUIRED_FILES = (
     "dashboards/data_quality_dashboard.sql",
     "dashboards/BUSINESS_DASHBOARD_REVISION_PROMPT.md",
     "dashboards/DATA_QUALITY_DASHBOARD_REVISION_PROMPT.md",
+    "docs/assets/final-star-schema.svg",
     "docs/data_model.md",
     "docs/pipeline.md",
     "docs/data_quality_methodology.md",
@@ -193,6 +194,26 @@ def main() -> int:
         errors.append(
             "dbt mart models must be exactly the five required dimensions and two required facts"
         )
+
+    demographic_key_models = (
+        ROOT / "models/mart/dim_demographics.sql",
+        ROOT / "models/mart/fact_assessments.sql",
+        ROOT / "models/mart/fact_vle_interactions.sql",
+        ROOT / "src/03_gold/sql/06_gold_dimensions.sql",
+        ROOT / "src/03_gold/sql/07_gold_facts.sql",
+    )
+    for model in demographic_key_models:
+        if model.is_file() and "final_result" in model.read_text(encoding="utf-8"):
+            errors.append(
+                f"enrollment outcome leaked into Gold demographic grain: {model.relative_to(ROOT)}"
+            )
+
+    cohort_model = ROOT / "src/04_analytics/sql/09_learner_outcomes.sql"
+    if cohort_model.is_file():
+        cohort_text = cohort_model.read_text(encoding="utf-8")
+        for required_field in ("student_cohort_key", "final_result", "is_withdrawn"):
+            if required_field not in cohort_text:
+                errors.append(f"student_cohort field missing: {required_field}")
 
     for dashboard in sorted((ROOT / "dashboards").glob("*.lvdash.json")):
         try:

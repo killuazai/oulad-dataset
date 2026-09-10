@@ -6,7 +6,7 @@ The core mart follows the professor's required model exactly: **two facts and
 five dimensions**. It is a fact constellation because both facts share the same
 conformed dimensions.
 
-![Approved final OULAD star schema](assets/final-star-schema.png)
+![Final OULAD star schema and supporting enrollment model](assets/final-star-schema.svg)
 
 | Object | Key | Grain |
 |---|---|---|
@@ -14,7 +14,7 @@ conformed dimensions.
 | `dim_course` | `course_key` | One module code |
 | `dim_module_presentation` | `module_presentation_key` | One module and presentation |
 | `dim_date` | `date_key` | One relative course day |
-| `dim_demographics` | `demographics_key` | One distinct demographic and final-outcome profile |
+| `dim_demographics` | `demographics_key` | One distinct demographic profile |
 | `fact_assessments` | `assessment_submission_key` | One student assessment submission |
 | `fact_vle_interactions` | `vle_interaction_key` | One student, module presentation, VLE site, and relative day |
 
@@ -110,24 +110,23 @@ views to make BI labels clearer without adding physical dimensions:
 
 ## Student and Demographics
 
-`dim_student` contains stable identity. Per the team's final schema,
-`dim_demographics` contains gender, region, education, IMD band, age band,
-disability, final result, and the derived `is_withdrawn` flag. The demographic
-key includes `final_result`, so the dimension stays unique and fact joins do
-not fan out when otherwise-identical profiles have different outcomes.
+`dim_student` contains stable identity. `dim_demographics` contains gender,
+region, education, IMD band, age band, and disability. Its deterministic key
+uses those demographic attributes only. `final_result` is excluded because it
+describes a student's enrollment outcome rather than a demographic profile.
 
 `demographics_key` is a surrogate key, but that alone does not make this SCD
 Type 2. A true Type 2 dimension would need a student business key, effective
 start/end boundaries, and a current-row indicator; OULAD does not provide a
-reliable effective timeline for those changes. `is_withdrawn` is derived from
-`final_result` and is not separately included in the hash input.
+reliable effective timeline for those changes.
 
 ## Supporting cohort model
 
 `04-analytics.student_cohort` is intentionally outside the core Gold star. It
 contains one student per module presentation and preserves students who have no
 submission or VLE event. It supplies correct denominators for enrollment,
-dropout, and risk analysis without adding a third core fact.
+dropout, and risk analysis without adding a third core fact. `final_result` and
+derived `is_withdrawn` live here at their correct enrollment grain.
 
 ## Expected source-aligned controls
 

@@ -41,18 +41,10 @@ models:
         data_tests: [not_null, unique]
 
   - name: dim_demographics
-    description: One row per distinct demographic and final-outcome profile; this is not SCD Type 2.
+    description: One row per distinct demographic profile; enrollment outcomes live in Analytics student_cohort.
     columns:
       - name: demographics_key
         data_tests: [not_null, unique]
-      - name: final_result
-        data_tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: [Withdrawn, Fail, Pass, Distinction]
-      - name: is_withdrawn
-        data_tests: [not_null]
 
   - name: fact_assessments
     description: Event fact with one row per student assessment submission.

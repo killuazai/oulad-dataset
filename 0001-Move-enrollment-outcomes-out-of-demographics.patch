@@ -1,0 +1,551 @@
+From 40e6bd57a1904f0f7398ca28f4544beef3dcf218 Mon Sep 17 00:00:00 2001
+From: Franzielle Nadine Canquin <franzielle.canquin@ftwfoundation.org>
+Date: Thu, 10 Sep 2026 20:58:09 +0800
+Subject: [PATCH] Move enrollment outcomes out of demographics
+
+---
+ FINDINGS_AND_UPLOAD_ORDER.md                 |   6 +-
+ README.md                                    |  16 ++-
+ docs/assets/final-star-schema.svg            | 132 +++++++++++++++++++
+ docs/data_dictionary.md                      |   4 +-
+ docs/data_model.md                           |  19 ++-
+ docs/decisions.md                            |  17 ++-
+ models/mart/dim_demographics.sql             |   7 +-
+ models/mart/fact_assessments.sql             |   3 +-
+ models/mart/fact_vle_interactions.sql        |   3 +-
+ models/mart/schema.yml                       |  10 +-
+ scripts/check_repository.py                  |  21 +++
+ src/03_gold/sql/07_gold_facts.sql            |   8 +-
+ src/04_analytics/sql/09_learner_outcomes.sql |   4 +-
+ tests/13_validate_analytics.sql              |  22 ++++
+ tests/dbt/assert_demographics_outcome.sql    |   3 -
+ 15 files changed, 219 insertions(+), 56 deletions(-)
+ create mode 100644 docs/assets/final-star-schema.svg
+ delete mode 100644 tests/dbt/assert_demographics_outcome.sql
+
+diff --git a/FINDINGS_AND_UPLOAD_ORDER.md b/FINDINGS_AND_UPLOAD_ORDER.md
+index 18a74dd..ea33814 100644
+--- a/FINDINGS_AND_UPLOAD_ORDER.md
++++ b/FINDINGS_AND_UPLOAD_ORDER.md
+@@ -21,8 +21,10 @@ This revision corrects those gaps:
+    Quality dashboards.
+ 9. Databricks SQL, Analytics, DQ, and Genie references now use the new names.
+ 10. Accuracy remains consolidated in Analytics validation.
+-11. The approved final schema adds `final_result` and derived `is_withdrawn` to
+-    `dim_demographics`; the deterministic key includes `final_result`.
++11. `final_result` and derived `is_withdrawn` belong in Analytics
++    `student_cohort` at one student + module + presentation enrollment grain.
++    `dim_demographics` and its deterministic key contain demographic attributes
++    only.
+ 12. The VLE fact grain is module + presentation + student + site + relative day,
+     and its Date foreign key follows the approved `activity_date_id` name.
+ 
+diff --git a/README.md b/README.md
+index 0be72d6..6eb52ae 100644
+--- a/README.md
++++ b/README.md
+@@ -53,7 +53,7 @@ The core mart contains exactly two facts and five dimensions:
+ - `dim_course`: one module code.
+ - `dim_module_presentation`: one specific offering of a course.
+ - `dim_date`: one relative course day.
+-- `dim_demographics`: one distinct demographic and final-outcome profile.
++- `dim_demographics`: one distinct demographic profile.
+ 
+ Both facts connect directly to all five dimensions. `course_key` on
+ `dim_module_presentation` is tested for consistency in dbt, but the BI model
+@@ -61,7 +61,9 @@ does not require a dimension-to-dimension join. See `docs/data_model.md`.
+ 
+ `student_cohort` is a supporting table in `04-analytics`, not a third Gold
+ fact. It keeps all enrolled students—including learners with no assessment or
+-VLE event—so cohort and dropout metrics have the correct denominator.
++VLE event—so cohort and dropout metrics have the correct denominator. It owns
++`final_result` and derived `is_withdrawn` because their grain is one student
++enrollment per module presentation, not one demographic profile.
+ 
+ ## Why Course and Module Presentation are separate
+ 
+@@ -73,7 +75,7 @@ keeping presentation-level attributes out of the course grain.
+ The approved relationship diagram is the contract implemented by both dbt and
+ the Databricks SQL compatibility build:
+ 
+-![Final OULAD star schema](docs/assets/final-star-schema.png)
++![Final OULAD star schema and supporting enrollment model](docs/assets/final-star-schema.svg)
+ 
+ ## Dates
+ 
+@@ -117,10 +119,10 @@ remain the canonical assignment implementation.
+   `DECIMAL(5,2)` rather than `INT`.
+ - Silver consolidates repeated VLE rows to one student-site-relative-day row
+   while preserving the total `sum_click`.
+-- Demographics stays separate from Student because some students have different
+-  profile and outcome values across module presentations. The approved hash
+-  includes `final_result`, and `is_withdrawn` is derived from it. A surrogate
+-  key by itself is not an SCD Type 2 implementation.
++- Demographics stays separate from Student because profile values can differ
++  across module presentations. Its deterministic hash includes demographic
++  attributes only. Enrollment outcome fields live in Analytics
++  `student_cohort`, where their student-presentation grain is preserved.
+ 
+ ## Optional Databricks portfolio assets
+ 
+diff --git a/docs/assets/final-star-schema.svg b/docs/assets/final-star-schema.svg
+new file mode 100644
+index 0000000..17901cd
+--- /dev/null
++++ b/docs/assets/final-star-schema.svg
+@@ -0,0 +1,132 @@
++<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080">
++  <defs>
++    <style>
++      .bg { fill: #f7f9fc; }
++      .title { font: 700 30px Arial, sans-serif; fill: #19324d; }
++      .subtitle { font: 16px Arial, sans-serif; fill: #52677d; }
++      .box { stroke-width: 2.5; rx: 12; }
++      .dim { fill: #eaf3ff; stroke: #3979c9; }
++      .fact { fill: #fff1df; stroke: #e37a21; }
++      .support { fill: #f5eaff; stroke: #8848c7; stroke-dasharray: 10 7; }
++      .head { font: 700 19px Arial, sans-serif; fill: #18324b; }
++      .grain { font: italic 13px Arial, sans-serif; fill: #566b80; }
++      .field { font: 14px Arial, sans-serif; fill: #27394a; }
++      .key { font: 700 14px Arial, sans-serif; fill: #1f5fa8; }
++      .outcome { font: 700 14px Arial, sans-serif; fill: #7637a8; }
++      .line { fill: none; stroke: #7892ad; stroke-width: 2.2; }
++      .analytics-line { fill: none; stroke: #8848c7; stroke-width: 2.2; stroke-dasharray: 8 6; }
++      .divider { stroke: #bdd0e4; stroke-width: 1; }
++      .note { font: 700 14px Arial, sans-serif; fill: #7637a8; }
++    </style>
++    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
++      <path d="M0,0 L0,6 L9,3 z" fill="#8848c7"/>
++    </marker>
++  </defs>
++
++  <rect class="bg" width="1600" height="1080"/>
++  <text class="title" x="800" y="46" text-anchor="middle">OULAD GOLD MODEL — 5 DIMENSIONS + 2 FACTS</text>
++  <text class="subtitle" x="800" y="74" text-anchor="middle">Enrollment outcome remains at its true student + module + presentation grain in Analytics</text>
++
++  <!-- relationships behind tables -->
++  <path class="line" d="M700 218 V270 H575 V315"/>
++  <path class="line" d="M740 218 V250 H1000 V315"/>
++  <path class="line" d="M365 400 H465"/>
++  <path class="line" d="M365 440 H830"/>
++  <path class="line" d="M1260 400 H1160"/>
++  <path class="line" d="M1260 440 H795"/>
++  <path class="line" d="M415 760 H520 V650"/>
++  <path class="line" d="M415 790 H875 V650"/>
++  <path class="line" d="M1185 760 H1100 V650"/>
++  <path class="line" d="M1185 790 H755 V650"/>
++
++  <!-- dim student -->
++  <rect class="box dim" x="570" y="105" width="360" height="115"/>
++  <text class="head" x="750" y="135" text-anchor="middle">dim_student</text>
++  <line class="divider" x1="570" y1="148" x2="930" y2="148"/>
++  <text class="key" x="590" y="173">PK student_key</text>
++  <text class="field" x="590" y="198">id_student</text>
++  <text class="grain" x="910" y="198" text-anchor="end">one student</text>
++
++  <!-- dim module presentation -->
++  <rect class="box dim" x="35" y="315" width="330" height="220"/>
++  <text class="head" x="200" y="345" text-anchor="middle">dim_module_presentation</text>
++  <line class="divider" x1="35" y1="358" x2="365" y2="358"/>
++  <text class="key" x="55" y="385">PK module_presentation_key</text>
++  <text class="field" x="55" y="412">course_key</text>
++  <text class="field" x="55" y="439">code_module</text>
++  <text class="field" x="55" y="466">code_presentation</text>
++  <text class="field" x="55" y="493">module_presentation_length</text>
++  <text class="grain" x="345" y="520" text-anchor="end">one module presentation</text>
++
++  <!-- fact assessments -->
++  <rect class="box fact" x="465" y="315" width="330" height="335"/>
++  <text class="head" x="630" y="345" text-anchor="middle">fact_assessments</text>
++  <line class="divider" x1="465" y1="358" x2="795" y2="358"/>
++  <text class="key" x="485" y="385">PK assessment_submission_key</text>
++  <text class="field" x="485" y="412">FK student_key</text>
++  <text class="field" x="485" y="439">FK demographics_key</text>
++  <text class="field" x="485" y="466">FK course_key</text>
++  <text class="field" x="485" y="493">FK module_presentation_key</text>
++  <text class="field" x="485" y="520">FK submission_date_key</text>
++  <text class="field" x="485" y="547">FK due_date_key</text>
++  <text class="field" x="485" y="574">id_assessment · assessment_type</text>
++  <text class="field" x="485" y="601">assessment_weight · is_banked · score</text>
++  <text class="grain" x="775" y="632" text-anchor="end">one student assessment submission</text>
++
++  <!-- fact VLE -->
++  <rect class="box fact" x="830" y="315" width="330" height="335"/>
++  <text class="head" x="995" y="345" text-anchor="middle">fact_vle_interactions</text>
++  <line class="divider" x1="830" y1="358" x2="1160" y2="358"/>
++  <text class="key" x="850" y="385">PK vle_interaction_key</text>
++  <text class="field" x="850" y="412">FK student_key</text>
++  <text class="field" x="850" y="439">FK demographics_key</text>
++  <text class="field" x="850" y="466">FK activity_date_id</text>
++  <text class="field" x="850" y="493">FK course_key</text>
++  <text class="field" x="850" y="520">FK module_presentation_key</text>
++  <text class="field" x="850" y="547">id_site · activity_type</text>
++  <text class="field" x="850" y="574">sum_click</text>
++  <text class="grain" x="1140" y="615" text-anchor="end">student + presentation + site + day</text>
++
++  <!-- demographics -->
++  <rect class="box dim" x="1260" y="315" width="305" height="260"/>
++  <text class="head" x="1412" y="345" text-anchor="middle">dim_demographics</text>
++  <line class="divider" x1="1260" y1="358" x2="1565" y2="358"/>
++  <text class="key" x="1280" y="385">PK demographics_key</text>
++  <text class="field" x="1280" y="412">gender</text>
++  <text class="field" x="1280" y="439">region</text>
++  <text class="field" x="1280" y="466">highest_education</text>
++  <text class="field" x="1280" y="493">imd_band</text>
++  <text class="field" x="1280" y="520">age_band</text>
++  <text class="field" x="1280" y="547">disability</text>
++  <text class="grain" x="1545" y="565" text-anchor="end">one demographic profile</text>
++
++  <!-- course -->
++  <rect class="box dim" x="155" y="705" width="310" height="130"/>
++  <text class="head" x="310" y="735" text-anchor="middle">dim_course</text>
++  <line class="divider" x1="155" y1="748" x2="465" y2="748"/>
++  <text class="key" x="175" y="775">PK course_key</text>
++  <text class="field" x="175" y="802">code_module</text>
++  <text class="grain" x="445" y="820" text-anchor="end">one module</text>
++
++  <!-- date -->
++  <rect class="box dim" x="1135" y="705" width="310" height="155"/>
++  <text class="head" x="1290" y="735" text-anchor="middle">dim_date</text>
++  <line class="divider" x1="1135" y1="748" x2="1445" y2="748"/>
++  <text class="key" x="1155" y="775">PK date_key</text>
++  <text class="field" x="1155" y="802">relative_day · relative_week</text>
++  <text class="field" x="1155" y="829">course_phase</text>
++  <text class="grain" x="1425" y="847" text-anchor="end">one relative day</text>
++
++  <!-- supporting analytics enrollment model -->
++  <path class="analytics-line" marker-end="url(#arrow)" d="M800 650 V900"/>
++  <rect class="box support" x="405" y="900" width="790" height="145"/>
++  <text class="head" x="800" y="930" text-anchor="middle">student_cohort — supporting Analytics model</text>
++  <line class="divider" x1="405" y1="943" x2="1195" y2="943"/>
++  <text class="key" x="430" y="971">PK student_cohort_key</text>
++  <text class="field" x="430" y="999">student_key · course_key · module_presentation_key · demographics_key</text>
++  <text class="outcome" x="930" y="971">final_result · is_withdrawn</text>
++  <text class="field" x="930" y="999">registration dates · credits · previous attempts</text>
++  <text class="grain" x="1170" y="1028" text-anchor="end">one student enrollment per module presentation — not a third Gold fact</text>
++
++  <text class="note" x="800" y="1068" text-anchor="middle">Gold core stays at 5 dimensions + 2 facts; enrollment outcomes remain in Analytics.</text>
++</svg>
+diff --git a/docs/data_dictionary.md b/docs/data_dictionary.md
+index 93d7444..2b3dc81 100644
+--- a/docs/data_dictionary.md
++++ b/docs/data_dictionary.md
+@@ -8,7 +8,7 @@
+ | `dim_course` | `course_key` | `code_module` |
+ | `dim_module_presentation` | `module_presentation_key` | `course_key`, module code, presentation code, length |
+ | `dim_date` | `date_key` | relative day, relative week, course phase |
+-| `dim_demographics` | `demographics_key` | gender, region, education, IMD band, age band, disability, final result, withdrawal flag |
++| `dim_demographics` | `demographics_key` | gender, region, education, IMD band, age band, disability |
+ 
+ ## Core facts
+ 
+@@ -26,7 +26,7 @@ assessment date roles and the VLE activity date all reference
+ 
+ | Model | Grain | Purpose |
+ |---|---|---|
+-| `student_cohort` | Student and module presentation | Complete cohort/dropout denominator |
++| `student_cohort` | Student and module presentation | Complete cohort/dropout denominator, final result, and withdrawal flag |
+ | `learner_outcomes` | Module presentation | Enrollment and outcome totals |
+ | `student_engagement` | Student and module presentation | Engagement related to final performance |
+ | `assessment_performance` | Module presentation and assessment type | Additive assessment controls and rates |
+diff --git a/docs/data_model.md b/docs/data_model.md
+index 94d12fc..2826367 100644
+--- a/docs/data_model.md
++++ b/docs/data_model.md
+@@ -6,7 +6,7 @@ The core mart follows the professor's required model exactly: **two facts and
+ five dimensions**. It is a fact constellation because both facts share the same
+ conformed dimensions.
+ 
+-![Approved final OULAD star schema](assets/final-star-schema.png)
++![Final OULAD star schema and supporting enrollment model](assets/final-star-schema.svg)
+ 
+ | Object | Key | Grain |
+ |---|---|---|
+@@ -14,7 +14,7 @@ conformed dimensions.
+ | `dim_course` | `course_key` | One module code |
+ | `dim_module_presentation` | `module_presentation_key` | One module and presentation |
+ | `dim_date` | `date_key` | One relative course day |
+-| `dim_demographics` | `demographics_key` | One distinct demographic and final-outcome profile |
++| `dim_demographics` | `demographics_key` | One distinct demographic profile |
+ | `fact_assessments` | `assessment_submission_key` | One student assessment submission |
+ | `fact_vle_interactions` | `vle_interaction_key` | One student, module presentation, VLE site, and relative day |
+ 
+@@ -110,24 +110,23 @@ views to make BI labels clearer without adding physical dimensions:
+ 
+ ## Student and Demographics
+ 
+-`dim_student` contains stable identity. Per the team's final schema,
+-`dim_demographics` contains gender, region, education, IMD band, age band,
+-disability, final result, and the derived `is_withdrawn` flag. The demographic
+-key includes `final_result`, so the dimension stays unique and fact joins do
+-not fan out when otherwise-identical profiles have different outcomes.
++`dim_student` contains stable identity. `dim_demographics` contains gender,
++region, education, IMD band, age band, and disability. Its deterministic key
++uses those demographic attributes only. `final_result` is excluded because it
++describes a student's enrollment outcome rather than a demographic profile.
+ 
+ `demographics_key` is a surrogate key, but that alone does not make this SCD
+ Type 2. A true Type 2 dimension would need a student business key, effective
+ start/end boundaries, and a current-row indicator; OULAD does not provide a
+-reliable effective timeline for those changes. `is_withdrawn` is derived from
+-`final_result` and is not separately included in the hash input.
++reliable effective timeline for those changes.
+ 
+ ## Supporting cohort model
+ 
+ `04-analytics.student_cohort` is intentionally outside the core Gold star. It
+ contains one student per module presentation and preserves students who have no
+ submission or VLE event. It supplies correct denominators for enrollment,
+-dropout, and risk analysis without adding a third core fact.
++dropout, and risk analysis without adding a third core fact. `final_result` and
++derived `is_withdrawn` live here at their correct enrollment grain.
+ 
+ ## Expected source-aligned controls
+ 
+diff --git a/docs/decisions.md b/docs/decisions.md
+index e817850..6d32ab7 100644
+--- a/docs/decisions.md
++++ b/docs/decisions.md
+@@ -18,7 +18,9 @@ filtering; dbt verifies the course/presentation mapping.
+ 
+ A complete cohort is required for dropout denominators, but Enrollment is not a
+ required core fact. `student_cohort` therefore lives in Analytics as a
+-supporting reporting table rather than a third Gold fact.
++supporting reporting table rather than a third Gold fact. It contains
++`final_result` and derived `is_withdrawn` because both describe a student's
++enrollment in one module presentation.
+ 
+ ## Relative dates
+ 
+@@ -27,12 +29,13 @@ reused for submission, due, and activity roles; no calendar date is invented.
+ 
+ ## Student and demographics stay separate
+ 
+-Some students have different source profiles and outcomes across module
+-presentations. The approved schema keeps `final_result` and derived
+-`is_withdrawn` in `dim_demographics`; therefore `final_result` is included in
+-the deterministic demographic hash to prevent ambiguous joins. The surrogate
+-key is not labeled SCD Type 2 because there are no reliable effective dates or
+-current-row indicator.
++Some students have different source profiles across module presentations.
++`dim_demographics` contains demographic attributes only, and its deterministic
++hash uses only those attributes. Outcomes are not demographics: `final_result`
++and `is_withdrawn` remain in Analytics `student_cohort` at the student + module
+++ presentation enrollment grain. The demographic surrogate key is not labeled
++SCD Type 2 because there are no reliable effective dates or current-row
++indicator.
+ 
+ ## Full refresh and quality gates
+ 
+diff --git a/models/mart/dim_demographics.sql b/models/mart/dim_demographics.sql
+index d20a76e..8c20f48 100644
+--- a/models/mart/dim_demographics.sql
++++ b/models/mart/dim_demographics.sql
+@@ -9,8 +9,7 @@ select distinct
+       coalesce(highest_education, 'UNKNOWN'),
+       coalesce(imd_band, 'UNKNOWN'),
+       coalesce(age_band, 'UNKNOWN'),
+-      coalesce(disability, 'UNKNOWN'),
+-      coalesce(final_result, 'UNKNOWN')
++      coalesce(disability, 'UNKNOWN')
+     ),
+     256
+   ) as demographics_key,
+@@ -19,7 +18,5 @@ select distinct
+   highest_education,
+   imd_band,
+   age_band,
+-  disability,
+-  final_result,
+-  cast(final_result = 'Withdrawn' as boolean) as is_withdrawn
++  disability
+ from {{ source('oulad_clean', 'student_info_clean') }}
+diff --git a/models/mart/fact_assessments.sql b/models/mart/fact_assessments.sql
+index 0f493d9..ccd6ae5 100644
+--- a/models/mart/fact_assessments.sql
++++ b/models/mart/fact_assessments.sql
+@@ -13,8 +13,7 @@ select
+     concat_ws(
+       '||', coalesce(student.gender, 'UNKNOWN'), coalesce(student.region, 'UNKNOWN'),
+       coalesce(student.highest_education, 'UNKNOWN'), coalesce(student.imd_band, 'UNKNOWN'),
+-      coalesce(student.age_band, 'UNKNOWN'), coalesce(student.disability, 'UNKNOWN'),
+-      coalesce(student.final_result, 'UNKNOWN')
++      coalesce(student.age_band, 'UNKNOWN'), coalesce(student.disability, 'UNKNOWN')
+     ),
+     256
+   ) as demographics_key,
+diff --git a/models/mart/fact_vle_interactions.sql b/models/mart/fact_vle_interactions.sql
+index 6a2ec87..dd8b096 100644
+--- a/models/mart/fact_vle_interactions.sql
++++ b/models/mart/fact_vle_interactions.sql
+@@ -17,8 +17,7 @@ select
+     concat_ws(
+       '||', coalesce(student.gender, 'UNKNOWN'), coalesce(student.region, 'UNKNOWN'),
+       coalesce(student.highest_education, 'UNKNOWN'), coalesce(student.imd_band, 'UNKNOWN'),
+-      coalesce(student.age_band, 'UNKNOWN'), coalesce(student.disability, 'UNKNOWN'),
+-      coalesce(student.final_result, 'UNKNOWN')
++      coalesce(student.age_band, 'UNKNOWN'), coalesce(student.disability, 'UNKNOWN')
+     ),
+     256
+   ) as demographics_key,
+diff --git a/models/mart/schema.yml b/models/mart/schema.yml
+index 50c2cc2..1bec345 100644
+--- a/models/mart/schema.yml
++++ b/models/mart/schema.yml
+@@ -41,18 +41,10 @@ models:
+         data_tests: [not_null, unique]
+ 
+   - name: dim_demographics
+-    description: One row per distinct demographic and final-outcome profile; this is not SCD Type 2.
++    description: One row per distinct demographic profile; enrollment outcomes live in Analytics student_cohort.
+     columns:
+       - name: demographics_key
+         data_tests: [not_null, unique]
+-      - name: final_result
+-        data_tests:
+-          - not_null
+-          - accepted_values:
+-              arguments:
+-                values: [Withdrawn, Fail, Pass, Distinction]
+-      - name: is_withdrawn
+-        data_tests: [not_null]
+ 
+   - name: fact_assessments
+     description: Event fact with one row per student assessment submission.
+diff --git a/scripts/check_repository.py b/scripts/check_repository.py
+index 2588ee1..aa7fa87 100644
+--- a/scripts/check_repository.py
++++ b/scripts/check_repository.py
+@@ -51,6 +51,7 @@ REQUIRED_FILES = (
+     "dashboards/data_quality_dashboard.sql",
+     "dashboards/BUSINESS_DASHBOARD_REVISION_PROMPT.md",
+     "dashboards/DATA_QUALITY_DASHBOARD_REVISION_PROMPT.md",
++    "docs/assets/final-star-schema.svg",
+     "docs/data_model.md",
+     "docs/pipeline.md",
+     "docs/data_quality_methodology.md",
+@@ -194,6 +195,26 @@ def main() -> int:
+             "dbt mart models must be exactly the five required dimensions and two required facts"
+         )
+ 
++    demographic_key_models = (
++        ROOT / "models/mart/dim_demographics.sql",
++        ROOT / "models/mart/fact_assessments.sql",
++        ROOT / "models/mart/fact_vle_interactions.sql",
++        ROOT / "src/03_gold/sql/06_gold_dimensions.sql",
++        ROOT / "src/03_gold/sql/07_gold_facts.sql",
++    )
++    for model in demographic_key_models:
++        if model.is_file() and "final_result" in model.read_text(encoding="utf-8"):
++            errors.append(
++                f"enrollment outcome leaked into Gold demographic grain: {model.relative_to(ROOT)}"
++            )
++
++    cohort_model = ROOT / "src/04_analytics/sql/09_learner_outcomes.sql"
++    if cohort_model.is_file():
++        cohort_text = cohort_model.read_text(encoding="utf-8")
++        for required_field in ("student_cohort_key", "final_result", "is_withdrawn"):
++            if required_field not in cohort_text:
++                errors.append(f"student_cohort field missing: {required_field}")
++
+     for dashboard in sorted((ROOT / "dashboards").glob("*.lvdash.json")):
+         try:
+             json.loads(dashboard.read_text(encoding="utf-8"))
+diff --git a/src/03_gold/sql/07_gold_facts.sql b/src/03_gold/sql/07_gold_facts.sql
+index 9d3a37e..ea2e9e6 100644
+--- a/src/03_gold/sql/07_gold_facts.sql
++++ b/src/03_gold/sql/07_gold_facts.sql
+@@ -22,8 +22,7 @@ SELECT
+     CONCAT_WS(
+       '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
+       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
+-      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN'),
+-      COALESCE(student.final_result, 'UNKNOWN')
++      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
+     ),
+     256
+   ) AS demographics_key,
+@@ -65,8 +64,7 @@ SELECT
+     CONCAT_WS(
+       '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
+       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
+-      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN'),
+-      COALESCE(student.final_result, 'UNKNOWN')
++      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
+     ),
+     256
+   ) AS demographics_key,
+@@ -82,4 +80,4 @@ INNER JOIN IDENTIFIER(clean_namespace || '.vle_clean') AS activity
+ INNER JOIN IDENTIFIER(clean_namespace || '.student_info_clean') AS student
+   ON interaction.code_module = student.code_module
+   AND interaction.code_presentation = student.code_presentation
+-  AND interaction.id_student = student.id_student;
+\ No newline at end of file
++  AND interaction.id_student = student.id_student;
+diff --git a/src/04_analytics/sql/09_learner_outcomes.sql b/src/04_analytics/sql/09_learner_outcomes.sql
+index 3daceb8..b7df490 100644
+--- a/src/04_analytics/sql/09_learner_outcomes.sql
++++ b/src/04_analytics/sql/09_learner_outcomes.sql
+@@ -23,8 +23,7 @@ SELECT
+     CONCAT_WS(
+       '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
+       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
+-      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN'),
+-      COALESCE(student.final_result, 'UNKNOWN')
++      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
+     ),
+     256
+   ) AS demographics_key,
+@@ -36,6 +35,7 @@ SELECT
+   student.num_of_prev_attempts,
+   student.studied_credits,
+   student.final_result,
++  CAST(student.final_result = 'Withdrawn' AS BOOLEAN) AS is_withdrawn,
+   CASE WHEN student.final_result = 'Withdrawn' THEN 1 ELSE 0 END AS withdrawn_count,
+   CASE WHEN student.final_result = 'Fail' THEN 1 ELSE 0 END AS failed_count,
+   CASE WHEN student.final_result = 'Pass' THEN 1 ELSE 0 END AS passed_count,
+diff --git a/tests/13_validate_analytics.sql b/tests/13_validate_analytics.sql
+index 9c0da9c..bc53cd9 100644
+--- a/tests/13_validate_analytics.sql
++++ b/tests/13_validate_analytics.sql
+@@ -77,6 +77,28 @@ analytics_assessment AS (
+   FROM IDENTIFIER(analytics_namespace || '.assessment_performance')
+ ),
+ checks AS (
++  SELECT
++    'student_cohort' AS dataset_name,
++    'student_cohort_key, final_result, is_withdrawn' AS column_name,
++    'student enrollment grain and outcome fields are valid' AS check_name,
++    'VALIDITY' AS quality_dimension,
++    'UNIQUE_ACCEPTED_VALUES_DERIVATION' AS check_type,
++    'One row per student enrollment; outcome is accepted and withdrawal flag agrees' AS expectation,
++    CAST(0 AS DECIMAL(7, 3)) AS threshold_pct,
++    'CRITICAL' AS severity,
++    'analytics' AS check_owner,
++    COUNT(*) AS total_count,
++    COUNT_IF(
++      student_cohort_key IS NULL
++      OR final_result NOT IN ('Withdrawn', 'Fail', 'Pass', 'Distinction')
++      OR is_withdrawn IS NULL
++      OR is_withdrawn <> (final_result = 'Withdrawn')
++      OR enrollment_count <> 1
++    ) + COUNT(*) - COUNT(DISTINCT student_cohort_key) AS failed_count
++  FROM IDENTIFIER(analytics_namespace || '.student_cohort')
++
++  UNION ALL
++
+   SELECT
+     'learner_outcomes' AS dataset_name,
+     'module_presentation_key' AS column_name,
+diff --git a/tests/dbt/assert_demographics_outcome.sql b/tests/dbt/assert_demographics_outcome.sql
+deleted file mode 100644
+index 6076d9b..0000000
+--- a/tests/dbt/assert_demographics_outcome.sql
++++ /dev/null
+@@ -1,3 +0,0 @@
+-select demographics_key
+-from {{ ref('dim_demographics') }}
+-where is_withdrawn <> (final_result = 'Withdrawn')
+-- 
+2.50.1 (Apple Git-155)
+

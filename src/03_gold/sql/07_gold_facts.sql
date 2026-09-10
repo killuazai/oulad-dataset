@@ -22,8 +22,7 @@ SELECT
     CONCAT_WS(
       '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
-      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN'),
-      COALESCE(student.final_result, 'UNKNOWN')
+      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
     ),
     256
   ) AS demographics_key,
@@ -65,8 +64,7 @@ SELECT
     CONCAT_WS(
       '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
-      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN'),
-      COALESCE(student.final_result, 'UNKNOWN')
+      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
     ),
     256
   ) AS demographics_key,
