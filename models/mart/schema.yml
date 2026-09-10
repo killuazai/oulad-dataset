@@ -41,10 +41,18 @@ models:
         data_tests: [not_null, unique]
 
   - name: dim_demographics
-    description: One row per distinct demographic profile; this is not SCD Type 2.
+    description: One row per distinct demographic and final-outcome profile; this is not SCD Type 2.
     columns:
       - name: demographics_key
         data_tests: [not_null, unique]
+      - name: final_result
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [Withdrawn, Fail, Pass, Distinction]
+      - name: is_withdrawn
+        data_tests: [not_null]
 
   - name: fact_assessments
     description: Event fact with one row per student assessment submission.
@@ -99,7 +107,7 @@ models:
                 values: [CMA, TMA, Exam]
 
   - name: fact_vle_interactions
-    description: Aggregated fact with one row per student, VLE site, and relative day.
+    description: Aggregated fact with one row per student, module presentation, VLE site, and relative day.
     columns:
       - name: vle_interaction_key
         data_tests: [not_null, unique]
@@ -131,7 +139,7 @@ models:
               arguments:
                 to: ref('dim_demographics')
                 field: demographics_key
-      - name: activity_date_key
+      - name: activity_date_id
         data_tests:
           - not_null
           - relationships:

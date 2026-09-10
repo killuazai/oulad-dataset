@@ -117,7 +117,7 @@ ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interactions
   REFERENCES `ftw-week-07`.`03-mart`.dim_demographics (demographics_key);
 ALTER TABLE `ftw-week-07`.`03-mart`.fact_vle_interactions
   ADD CONSTRAINT fk_vle_interactions_activity_date
-  FOREIGN KEY (activity_date_key)
+  FOREIGN KEY (activity_date_id)
   REFERENCES `ftw-week-07`.`03-mart`.dim_date (date_key);
 
 -- Expect 18 constraints: seven PKs and eleven FKs.

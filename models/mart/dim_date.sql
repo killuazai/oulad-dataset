@@ -21,8 +21,8 @@ relative_days as (
 )
 select
   sha2(cast(relative_day as string), 256) as date_key,
-  relative_day,
-  floor(relative_day / 7) as relative_week,
+  cast(relative_day as int) as relative_day,
+  cast(floor(relative_day / 7) as int) as relative_week,
   case
     when relative_day < 0 then 'BEFORE PRESENTATION'
     when relative_day <= 28 then 'WEEKS 0-4'

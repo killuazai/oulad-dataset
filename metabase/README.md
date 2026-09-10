@@ -1,14 +1,15 @@
 # Metabase dashboard build guide
 
-The assignment dashboard should use the validated tables in
-`ftw-week-07.04-analytics`. The Databricks Lakeview exports under `dashboards/`
-remain optional portfolio artifacts; they do not replace the required Metabase
-dashboard.
+The business dashboard uses validated tables in `ftw-week-07.04-analytics`.
+The Data Quality dashboard uses governed views in
+`ftw-week-07.05-data-quality`. The Databricks Lakeview exports under
+`dashboards/` remain optional portfolio artifacts; they do not replace the
+required Metabase dashboard.
 
 ## Connect the data
 
 1. Add the Databricks SQL warehouse as a Metabase database.
-2. Synchronize schemas `03-mart` and `04-analytics`.
+2. Synchronize schemas `03-mart`, `04-analytics`, and `05-data-quality`.
 3. Create a collection named **OULAD Student Performance & Engagement**.
 4. Save each statement from `dashboard_queries.sql`. Use queries 1 and 2 as
    source models for the KPI number cards; create one number question per metric.
@@ -38,3 +39,25 @@ base table. Empty selections mean **All**.
 Rates must be calculated from additive totals. Do not average stored rates.
 Risk is a transparent screening rule, not a trained prediction. Negative
 relative weeks are valid pre-presentation activity and must remain visible.
+
+## Data Quality dashboard
+
+Create a second collection named **OULAD Data Quality Monitoring**. Save the
+nine statements in `data_quality_dashboard_queries.sql` as separate questions.
+
+| Row | Card | Visualization |
+|---:|---|---|
+| 1 | Weighted DQ Score, Check Pass Rate, Source Rows, Failed Evaluations | Number cards |
+| 2 | Six Canonical Quality Dimensions | Bar/table |
+| 3 | Current Validation-Suite Scores | Bar chart |
+| 3 | Latest Check-Status Distribution | Stacked bar or donut |
+| 4 | Dataset Quality Scores | Table |
+| 5 | Checks Needing Attention | Detail table |
+| 6 | Checks Needing Attention by Owner | Bar chart |
+| 6 | Latest Source-Volume Controls | Table |
+| 7 | Daily Quality History | Line chart; show only after three run dates |
+
+Map `validation_suite`, `dataset_name`, `quality_dimension`, `status`,
+`severity`, and `check_owner` as Field Filters only on compatible cards. The DQ
+dashboard reads the centralized check-result table through governed views; it
+does not rerun validation itself.

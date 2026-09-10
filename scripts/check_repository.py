@@ -28,6 +28,7 @@ REQUIRED_FILES = (
     "models/mart/fact_vle_interactions.sql",
     "metabase/README.md",
     "metabase/dashboard_queries.sql",
+    "metabase/data_quality_dashboard_queries.sql",
     "notebooks/06_run_after_dbt.sql",
     "src/00_setup/01_setup.sql",
     "src/01_bronze/sql/02_bronze_sources.sql",
@@ -51,6 +52,7 @@ REQUIRED_FILES = (
     "dashboards/BUSINESS_DASHBOARD_REVISION_PROMPT.md",
     "dashboards/DATA_QUALITY_DASHBOARD_REVISION_PROMPT.md",
     "docs/data_model.md",
+    "docs/pipeline.md",
     "docs/data_quality_methodology.md",
     "docs/validation.md",
 )

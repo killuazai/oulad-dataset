@@ -38,7 +38,7 @@ SELECT
   relative_date.relative_week,
   SUM(interaction.sum_click) AS total_clicks,
   COUNT(DISTINCT interaction.student_key) AS active_students,
-  SUM(interaction.student_site_day_count) AS student_site_days,
+  COUNT(*) AS student_site_days,
   COUNT(DISTINCT interaction.id_site) AS activities_used,
   ROUND(
     SUM(interaction.sum_click) / NULLIF(COUNT(DISTINCT interaction.student_key), 0),
@@ -46,7 +46,7 @@ SELECT
   ) AS average_clicks_per_active_student
 FROM `ftw-week-07`.`03-mart`.fact_vle_interactions AS interaction
 INNER JOIN `ftw-week-07`.`03-mart`.dim_date AS relative_date
-  ON interaction.activity_date_key = relative_date.date_key
+  ON interaction.activity_date_id = relative_date.date_key
 INNER JOIN `ftw-week-07`.`03-mart`.dim_module_presentation AS module
   ON interaction.module_presentation_key = module.module_presentation_key
 GROUP BY module.code_module, module.code_presentation, relative_date.relative_week;

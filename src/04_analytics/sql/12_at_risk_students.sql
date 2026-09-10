@@ -11,22 +11,31 @@ USING DELTA
 AS
 WITH engagement_signals AS (
   SELECT
-    module_presentation_key,
-    student_key,
-    COUNT(DISTINCT activity_relative_day) AS active_days,
-    SUM(sum_click) AS total_clicks
-  FROM IDENTIFIER(mart_namespace || '.fact_vle_interactions')
-  GROUP BY module_presentation_key, student_key
+    interaction.module_presentation_key,
+    interaction.student_key,
+    COUNT(DISTINCT relative_date.relative_day) AS active_days,
+    SUM(interaction.sum_click) AS total_clicks
+  FROM IDENTIFIER(mart_namespace || '.fact_vle_interactions') AS interaction
+  INNER JOIN IDENTIFIER(mart_namespace || '.dim_date') AS relative_date
+    ON interaction.activity_date_id = relative_date.date_key
+  GROUP BY interaction.module_presentation_key, interaction.student_key
 ),
 assessment_signals AS (
   SELECT
-    module_presentation_key,
-    student_key,
+    fact.module_presentation_key,
+    fact.student_key,
     COUNT(*) AS submission_count,
-    AVG(score) AS average_score,
-    COUNT_IF(days_from_due_date > 0) AS late_submission_count
-  FROM IDENTIFIER(mart_namespace || '.fact_assessments')
-  GROUP BY module_presentation_key, student_key
+    AVG(fact.score) AS average_score,
+    COUNT_IF(
+      fact.due_date_key IS NOT NULL
+      AND submission_date.relative_day > due_date.relative_day
+    ) AS late_submission_count
+  FROM IDENTIFIER(mart_namespace || '.fact_assessments') AS fact
+  INNER JOIN IDENTIFIER(mart_namespace || '.dim_date') AS submission_date
+    ON fact.submission_date_key = submission_date.date_key
+  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS due_date
+    ON fact.due_date_key = due_date.date_key
+  GROUP BY fact.module_presentation_key, fact.student_key
 ),
 signals AS (
   SELECT

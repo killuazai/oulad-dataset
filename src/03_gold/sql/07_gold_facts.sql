@@ -1,7 +1,7 @@
 -- Databricks notebook source
 -- Name: 07 - Gold Facts
 -- Purpose: Build the two facts explicitly required by the OULAD assignment.
--- Grain: One assessment submission, or one student-site-relative-day interaction.
+-- Grain: One assessment submission, or one student-presentation-site-relative-day interaction.
 
 DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
 DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
@@ -22,7 +22,8 @@ SELECT
     CONCAT_WS(
       '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
-      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
+      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN'),
+      COALESCE(student.final_result, 'UNKNOWN')
     ),
     256
   ) AS demographics_key,
@@ -31,26 +32,11 @@ SELECT
     WHEN assessment.assessment_date IS NULL THEN NULL
     ELSE SHA2(CAST(assessment.assessment_date AS STRING), 256)
   END AS due_date_key,
-  assessment.code_module,
-  assessment.code_presentation,
-  submission.id_assessment,
-  submission.id_student,
+  CAST(submission.id_assessment AS BIGINT) AS id_assessment,
   assessment.assessment_type,
   CAST(assessment.weight AS DECIMAL(5, 2)) AS assessment_weight,
-  submission.date_submitted AS submission_relative_day,
-  assessment.assessment_date AS due_relative_day,
-  CASE
-    WHEN assessment.assessment_date IS NULL THEN NULL
-    ELSE submission.date_submitted - assessment.assessment_date
-  END AS days_from_due_date,
-  submission.is_banked,
-  CAST(submission.score AS DECIMAL(5, 2)) AS score,
-  CASE
-    WHEN submission.score IS NULL THEN NULL
-    WHEN submission.score >= 40 THEN TRUE
-    ELSE FALSE
-  END AS passed_assessment,
-  1 AS submission_count
+  CAST(submission.is_banked AS BOOLEAN) AS is_banked,
+  CAST(submission.score AS DECIMAL(5, 2)) AS score
 FROM IDENTIFIER(clean_namespace || '.student_assessment_clean') AS submission
 INNER JOIN IDENTIFIER(clean_namespace || '.assessments_clean') AS assessment
   ON submission.id_assessment = assessment.id_assessment
@@ -79,21 +65,15 @@ SELECT
     CONCAT_WS(
       '||', COALESCE(student.gender, 'UNKNOWN'), COALESCE(student.region, 'UNKNOWN'),
       COALESCE(student.highest_education, 'UNKNOWN'), COALESCE(student.imd_band, 'UNKNOWN'),
-      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN')
+      COALESCE(student.age_band, 'UNKNOWN'), COALESCE(student.disability, 'UNKNOWN'),
+      COALESCE(student.final_result, 'UNKNOWN')
     ),
     256
   ) AS demographics_key,
-  SHA2(CAST(interaction.activity_date AS STRING), 256) AS activity_date_key,
-  interaction.code_module,
-  interaction.code_presentation,
-  interaction.id_student,
-  interaction.id_site,
+  SHA2(CAST(interaction.activity_date AS STRING), 256) AS activity_date_id,
+  CAST(interaction.id_site AS BIGINT) AS id_site,
   activity.activity_type,
-  activity.week_from AS available_week_from,
-  activity.week_to AS available_week_to,
-  interaction.activity_date AS activity_relative_day,
-  interaction.sum_click,
-  1 AS student_site_day_count
+  CAST(interaction.sum_click AS BIGINT) AS sum_click
 FROM IDENTIFIER(clean_namespace || '.student_vle_clean') AS interaction
 INNER JOIN IDENTIFIER(clean_namespace || '.vle_clean') AS activity
   ON interaction.code_module = activity.code_module

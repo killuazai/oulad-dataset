@@ -1,7 +1,8 @@
 # Dashboard build and maintenance guide
 
-The professor-required dashboard target is Metabase. Use `../metabase/README.md`
-and `../metabase/dashboard_queries.sql` for the submission. The Lakeview files
+The professor-required dashboard target is Metabase. Use `../metabase/README.md`,
+`../metabase/dashboard_queries.sql`, and
+`../metabase/data_quality_dashboard_queries.sql` for the submission. The Lakeview files
 in this directory are retained as optional Databricks portfolio artifacts.
 
 Run `notebooks/00_run_full_pipeline.sql` before refreshing either dashboard. The final runner step creates the `genie_*` views used by the exported dashboards.

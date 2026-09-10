@@ -1,7 +1,7 @@
 -- Databricks notebook source
 -- Name: 06 - Gold Dimensions
 -- Purpose: Build the five conformed dimensions required by the OULAD assignment.
--- Grain: One row per student, course, module presentation, relative day, or demographic profile.
+-- Grain: One row per student, course, module presentation, relative day, or demographic/outcome profile.
 
 DECLARE OR REPLACE VARIABLE clean_namespace STRING DEFAULT '`ftw-week-07`.`02-clean`';
 DECLARE OR REPLACE VARIABLE mart_namespace STRING DEFAULT '`ftw-week-07`.`03-mart`';
@@ -11,7 +11,7 @@ USING DELTA
 AS
 SELECT DISTINCT
   SHA2(CAST(id_student AS STRING), 256) AS student_key,
-  id_student
+  CAST(id_student AS BIGINT) AS id_student
 FROM IDENTIFIER(clean_namespace || '.student_info_clean');
 
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_course')
@@ -31,14 +31,7 @@ SELECT
   SHA2(code_module, 256) AS course_key,
   code_module,
   code_presentation,
-  CAST(SUBSTRING(code_presentation, 1, 4) AS INT) AS presentation_year,
-  SUBSTRING(code_presentation, 5, 1) AS presentation_term,
-  CASE SUBSTRING(code_presentation, 5, 1)
-    WHEN 'B' THEN 'February start'
-    WHEN 'J' THEN 'October start'
-    ELSE 'Other start'
-  END AS presentation_term_name,
-  module_presentation_length
+  CAST(module_presentation_length AS INT) AS module_presentation_length
 FROM IDENTIFIER(clean_namespace || '.courses_clean');
 
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_demographics')
@@ -53,7 +46,8 @@ SELECT DISTINCT
       COALESCE(highest_education, 'UNKNOWN'),
       COALESCE(imd_band, 'UNKNOWN'),
       COALESCE(age_band, 'UNKNOWN'),
-      COALESCE(disability, 'UNKNOWN')
+      COALESCE(disability, 'UNKNOWN'),
+      COALESCE(final_result, 'UNKNOWN')
     ),
     256
   ) AS demographics_key,
@@ -62,7 +56,9 @@ SELECT DISTINCT
   highest_education,
   imd_band,
   age_band,
-  disability
+  disability,
+  final_result,
+  CAST(final_result = 'Withdrawn' AS BOOLEAN) AS is_withdrawn
 FROM IDENTIFIER(clean_namespace || '.student_info_clean');
 
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_date')
@@ -88,8 +84,8 @@ relative_days AS (
 )
 SELECT
   SHA2(CAST(relative_day AS STRING), 256) AS date_key,
-  relative_day,
-  FLOOR(relative_day / 7) AS relative_week,
+  CAST(relative_day AS INT) AS relative_day,
+  CAST(FLOOR(relative_day / 7) AS INT) AS relative_week,
   CASE
     WHEN relative_day < 0 THEN 'BEFORE PRESENTATION'
     WHEN relative_day <= 28 THEN 'WEEKS 0-4'
@@ -118,7 +114,7 @@ FROM IDENTIFIER(mart_namespace || '.dim_date');
 
 CREATE OR REPLACE VIEW IDENTIFIER(mart_namespace || '.dim_activity_date') AS
 SELECT
-  date_key AS activity_date_key,
+  date_key AS activity_date_id,
   relative_day AS activity_relative_day,
   relative_week AS activity_relative_week,
   course_phase AS activity_course_phase

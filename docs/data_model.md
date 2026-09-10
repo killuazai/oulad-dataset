@@ -6,15 +6,17 @@ The core mart follows the professor's required model exactly: **two facts and
 five dimensions**. It is a fact constellation because both facts share the same
 conformed dimensions.
 
+![Approved final OULAD star schema](assets/final-star-schema.png)
+
 | Object | Key | Grain |
 |---|---|---|
 | `dim_student` | `student_key` | One anonymized student |
 | `dim_course` | `course_key` | One module code |
 | `dim_module_presentation` | `module_presentation_key` | One module and presentation |
 | `dim_date` | `date_key` | One relative course day |
-| `dim_demographics` | `demographics_key` | One distinct demographic profile |
+| `dim_demographics` | `demographics_key` | One distinct demographic and final-outcome profile |
 | `fact_assessments` | `assessment_submission_key` | One student assessment submission |
-| `fact_vle_interactions` | `vle_interaction_key` | One student, VLE site, and relative day |
+| `fact_vle_interactions` | `vle_interaction_key` | One student, module presentation, VLE site, and relative day |
 
 ## Relationship diagram
 
@@ -31,7 +33,7 @@ erDiagram
 
     DIM_DATE ||--o{ FACT_ASSESSMENTS : submission_date_key
     DIM_DATE ||--o{ FACT_ASSESSMENTS : due_date_key
-    DIM_DATE ||--o{ FACT_VLE_INTERACTIONS : activity_date_key
+    DIM_DATE ||--o{ FACT_VLE_INTERACTIONS : activity_date_id
 
     DIM_DEMOGRAPHICS ||--o{ FACT_ASSESSMENTS : demographics_key
     DIM_DEMOGRAPHICS ||--o{ FACT_VLE_INTERACTIONS : demographics_key
@@ -70,10 +72,10 @@ Foreign keys:
 - `demographics_key` → `dim_demographics`
 - `submission_date_key` and `due_date_key` → `dim_date`
 
-Assessment ID, type, decimal weight, score, banked status, pass flag, and days
-from due date are stored in this fact because Assessment is not one of the five
-required dimensions. A missing score remains null. A due-date key may be null
-for exams whose source due offset is null.
+Assessment ID, type, decimal weight, score, and banked status are stored in this
+fact because Assessment is not one of the five required dimensions. A missing
+score remains null. A due-date key may be null for exams whose source due
+offset is null.
 
 ### `fact_vle_interactions`
 
@@ -87,11 +89,11 @@ Foreign keys:
 - `course_key` → `dim_course`
 - `module_presentation_key` → `dim_module_presentation`
 - `demographics_key` → `dim_demographics`
-- `activity_date_key` → `dim_date`
+- `activity_date_id` → `dim_date`
 
-VLE site ID, activity type, availability weeks, relative activity day, and
-`sum_click` are stored in the fact because VLE Resource is not one of the five
-required dimensions.
+VLE site ID, activity type, and `sum_click` are stored in the fact because VLE
+Resource is not one of the five required dimensions. The full business grain
+is module + presentation + student + VLE site + relative activity day.
 
 ## Date roles
 
@@ -108,15 +110,17 @@ views to make BI labels clearer without adding physical dimensions:
 
 ## Student and Demographics
 
-`dim_student` contains stable identity. `dim_demographics` contains gender,
-region, education, IMD band, age band, and disability. They remain separate
-because some students have more than one demographic profile across module
-presentations.
+`dim_student` contains stable identity. Per the team's final schema,
+`dim_demographics` contains gender, region, education, IMD band, age band,
+disability, final result, and the derived `is_withdrawn` flag. The demographic
+key includes `final_result`, so the dimension stays unique and fact joins do
+not fan out when otherwise-identical profiles have different outcomes.
 
 `demographics_key` is a surrogate key, but that alone does not make this SCD
 Type 2. A true Type 2 dimension would need a student business key, effective
 start/end boundaries, and a current-row indicator; OULAD does not provide a
-reliable effective timeline for those changes.
+reliable effective timeline for those changes. `is_withdrawn` is derived from
+`final_result` and is not separately included in the hash input.
 
 ## Supporting cohort model
 

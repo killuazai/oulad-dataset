@@ -54,10 +54,14 @@ WITH checks AS (
 
   SELECT
     'dim_demographics', 'demographics_key',
-    'demographic profile key is complete and unique',
-    'UNIQUENESS', 'NULL_UNIQUE', 'One non-null key per distinct demographic profile',
+    'demographic and final-outcome profile key is complete and unique',
+    'UNIQUENESS', 'NULL_UNIQUE',
+    'One non-null key per distinct demographic and final-outcome profile',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
-    COUNT_IF(demographics_key IS NULL)
+    COUNT_IF(
+      demographics_key IS NULL OR final_result IS NULL OR is_withdrawn IS NULL
+      OR is_withdrawn <> (final_result = 'Withdrawn')
+    )
       + COUNT(*) - COUNT(DISTINCT demographics_key)
   FROM IDENTIFIER(mart_namespace || '.dim_demographics')
 
@@ -116,7 +120,7 @@ WITH checks AS (
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
     ON fact.demographics_key = demographic.demographics_key
   LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS activity_date
-    ON fact.activity_date_key = activity_date.date_key
+    ON fact.activity_date_id = activity_date.date_key
 
   UNION ALL
 
