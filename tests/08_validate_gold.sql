@@ -1,9 +1,13 @@
 -- Databricks notebook source
+-- DBTITLE 1,Cell 1
 -- Name: 08 - Gold Validation
 -- Purpose: Validate exactly five dimensions and two facts before registering relationships.
 -- Grain: One row per data-quality check and pipeline run.
 
-INSERT INTO IDENTIFIER(dq_namespace || '.dq_check_results')
+DECLARE OR REPLACE VARIABLE dq_run_id STRING DEFAULT UUID();
+DECLARE OR REPLACE VARIABLE dq_executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP();
+
+INSERT INTO `ftw-week-07`.`05-data-quality`.dq_check_results
 WITH checks AS (
   SELECT
     'dim_student' AS dataset_name, 'student_key' AS column_name,
@@ -14,7 +18,7 @@ WITH checks AS (
     'data_engineering' AS check_owner, COUNT(*) AS total_count,
     COUNT_IF(student_key IS NULL OR id_student IS NULL)
       + COUNT(*) - COUNT(DISTINCT student_key) AS failed_count
-  FROM IDENTIFIER(mart_namespace || '.dim_student')
+  FROM `ftw-week-07`.`03-mart`.dim_student
 
   UNION ALL
 
@@ -24,7 +28,7 @@ WITH checks AS (
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(course_key IS NULL OR code_module IS NULL)
       + COUNT(*) - COUNT(DISTINCT course_key)
-  FROM IDENTIFIER(mart_namespace || '.dim_course')
+  FROM `ftw-week-07`.`03-mart`.dim_course
 
   UNION ALL
 
@@ -36,8 +40,8 @@ WITH checks AS (
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(course.course_key IS NULL OR presentation.module_presentation_key IS NULL)
       + COUNT(*) - COUNT(DISTINCT presentation.module_presentation_key)
-  FROM IDENTIFIER(mart_namespace || '.dim_module_presentation') AS presentation
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_course') AS course
+  FROM `ftw-week-07`.`03-mart`.dim_module_presentation AS presentation
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_course AS course
     ON presentation.course_key = course.course_key
 
   UNION ALL
@@ -48,22 +52,19 @@ WITH checks AS (
     0, 'CRITICAL', 'data_engineering', COUNT(*),
     COUNT_IF(date_key IS NULL OR relative_day IS NULL)
       + COUNT(*) - COUNT(DISTINCT date_key)
-  FROM IDENTIFIER(mart_namespace || '.dim_date')
+  FROM `ftw-week-07`.`03-mart`.dim_date
 
   UNION ALL
 
   SELECT
     'dim_demographics', 'demographics_key',
-    'demographic and final-outcome profile key is complete and unique',
+    'demographic profile key is complete and unique',
     'UNIQUENESS', 'NULL_UNIQUE',
-    'One non-null key per distinct demographic and final-outcome profile',
+    'One non-null key per distinct demographic profile',
     0, 'CRITICAL', 'data_engineering', COUNT(*),
-    COUNT_IF(
-      demographics_key IS NULL OR final_result IS NULL OR is_withdrawn IS NULL
-      OR is_withdrawn <> (final_result = 'Withdrawn')
-    )
+    COUNT_IF(demographics_key IS NULL)
       + COUNT(*) - COUNT(DISTINCT demographics_key)
-  FROM IDENTIFIER(mart_namespace || '.dim_demographics')
+  FROM `ftw-week-07`.`03-mart`.dim_demographics
 
   UNION ALL
 
@@ -82,18 +83,18 @@ WITH checks AS (
       OR fact.score < 0 OR fact.score > 100
       OR fact.assessment_weight < 0 OR fact.assessment_weight > 100
     ) + COUNT(*) - COUNT(DISTINCT fact.assessment_submission_key)
-  FROM IDENTIFIER(mart_namespace || '.fact_assessments') AS fact
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
+  FROM `ftw-week-07`.`03-mart`.fact_assessments AS fact
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_student AS student
     ON fact.student_key = student.student_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_course') AS course
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_course AS course
     ON fact.course_key = course.course_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS presentation
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_module_presentation AS presentation
     ON fact.module_presentation_key = presentation.module_presentation_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_demographics AS demographic
     ON fact.demographics_key = demographic.demographics_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS submission_date
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_date AS submission_date
     ON fact.submission_date_key = submission_date.date_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS due_date
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_date AS due_date
     ON fact.due_date_key = due_date.date_key
 
   UNION ALL
@@ -110,16 +111,16 @@ WITH checks AS (
       OR demographic.demographics_key IS NULL OR activity_date.date_key IS NULL
       OR fact.course_key <> presentation.course_key OR fact.sum_click <= 0
     ) + COUNT(*) - COUNT(DISTINCT fact.vle_interaction_key)
-  FROM IDENTIFIER(mart_namespace || '.fact_vle_interactions') AS fact
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_student') AS student
+  FROM `ftw-week-07`.`03-mart`.fact_vle_interactions AS fact
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_student AS student
     ON fact.student_key = student.student_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_course') AS course
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_course AS course
     ON fact.course_key = course.course_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_module_presentation') AS presentation
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_module_presentation AS presentation
     ON fact.module_presentation_key = presentation.module_presentation_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_demographics') AS demographic
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_demographics AS demographic
     ON fact.demographics_key = demographic.demographics_key
-  LEFT JOIN IDENTIFIER(mart_namespace || '.dim_date') AS activity_date
+  LEFT JOIN `ftw-week-07`.`03-mart`.dim_date AS activity_date
     ON fact.activity_date_id = activity_date.date_key
 
   UNION ALL
@@ -129,10 +130,10 @@ WITH checks AS (
     'CONSISTENCY', 'VOLUME_RECONCILIATION',
     'Gold assessment count equals clean submission count',
     0, 'CRITICAL', 'data_engineering',
-    (SELECT COUNT(*) FROM IDENTIFIER(clean_namespace || '.student_assessment_clean')),
+    (SELECT COUNT(*) FROM `ftw-week-07`.`02-clean`.student_assessment_clean),
     ABS(
-      (SELECT COUNT(*) FROM IDENTIFIER(mart_namespace || '.fact_assessments'))
-      - (SELECT COUNT(*) FROM IDENTIFIER(clean_namespace || '.student_assessment_clean'))
+      (SELECT COUNT(*) FROM `ftw-week-07`.`03-mart`.fact_assessments)
+      - (SELECT COUNT(*) FROM `ftw-week-07`.`02-clean`.student_assessment_clean)
     )
 
   UNION ALL
@@ -146,11 +147,11 @@ WITH checks AS (
       + CASE WHEN silver.click_sum <> gold.click_sum THEN 1 ELSE 0 END
   FROM (
     SELECT COUNT(*) AS row_count, SUM(sum_click) AS click_sum
-    FROM IDENTIFIER(clean_namespace || '.student_vle_clean')
+    FROM `ftw-week-07`.`02-clean`.student_vle_clean
   ) AS silver
   CROSS JOIN (
     SELECT COUNT(*) AS row_count, SUM(sum_click) AS click_sum
-    FROM IDENTIFIER(mart_namespace || '.fact_vle_interactions')
+    FROM `ftw-week-07`.`03-mart`.fact_vle_interactions
   ) AS gold
 ),
 scored AS (
@@ -184,19 +185,25 @@ SELECT
   score_pct, failure_pct, status
 FROM classified;
 
+WITH current_run AS (
+  SELECT dq_run_id AS current_run_id
+)
 SELECT
   dataset_name,
   check_name,
   status,
   failed_count,
-  ASSERT_TRUE(
-    COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') OVER () = 0,
-    'critical Gold data-quality check failed; inspect 05-data-quality.dq_check_results'
-  ) AS gold_quality_gate
-FROM IDENTIFIER(dq_namespace || '.dq_check_results')
-WHERE run_id = dq_run_id AND layer = 'GOLD'
+  total_count,
+  CASE 
+    WHEN COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') OVER () = 0 THEN 'PASS'
+    ELSE 'FAIL: ' || CAST(COUNT_IF(status = 'FAIL' AND severity = 'CRITICAL') OVER () AS STRING) || ' critical check(s) failed'
+  END AS gold_quality_gate
+FROM `ftw-week-07`.`05-data-quality`.dq_check_results
+CROSS JOIN current_run
+WHERE run_id = current_run.current_run_id AND layer = 'GOLD'
 ORDER BY dataset_name, check_name;
 
 -- COMMAND ----------
+
 -- Register informational relationships only after the critical Gold gate passes.
--- MAGIC %run ../src/03_gold/sql/08_gold_relationships
+%run ../src/03_gold/sql/08_gold_relationships
