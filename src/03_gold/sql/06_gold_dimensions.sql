@@ -54,7 +54,8 @@ SELECT DISTINCT
       COALESCE(highest_education, 'UNKNOWN'),
       COALESCE(imd_band, 'UNKNOWN'),
       COALESCE(age_band, 'UNKNOWN'),
-      COALESCE(disability, 'UNKNOWN')
+      COALESCE(disability, 'UNKNOWN'),
+      COALESCE(final_result, 'UNKNOWN')
     ),
     256
   ) AS demographics_key,
@@ -63,7 +64,9 @@ SELECT DISTINCT
   highest_education,
   imd_band,
   age_band,
-  disability
+  disability,
+  final_result,
+  CAST(final_result = 'Withdrawn' AS BOOLEAN) AS is_withdrawn
 FROM IDENTIFIER(clean_namespace || '.student_info_clean');
 
 CREATE OR REPLACE TABLE IDENTIFIER(mart_namespace || '.dim_date')

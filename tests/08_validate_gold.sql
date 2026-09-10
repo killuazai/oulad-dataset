@@ -202,8 +202,3 @@ FROM `ftw-week-07`.`05-data-quality`.dq_check_results
 CROSS JOIN current_run
 WHERE run_id = current_run.current_run_id AND layer = 'GOLD'
 ORDER BY dataset_name, check_name;
-
--- COMMAND ----------
-
--- Register informational relationships only after the critical Gold gate passes.
-%run ../src/03_gold/sql/08_gold_relationships
